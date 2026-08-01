@@ -26,6 +26,12 @@ AMONG_US_ROLE_ID = 1449603295046930443
 ROBLOX_ROLE_ID = 1449603377150562354
 FREE_FIRE_ROLE_ID = 1502158964857638924
 VALORANT_ROLE_ID = 1521865058102149131
+PUBG_ROLE_ID = 1533083879563595826
+CLASH_OF_CLANS_ROLE_ID = 1533078042711167108
+DEAD_BY_DAYLIGHT_ROLE_ID = 1519218694591348786
+MINECRAFT_ROLE_ID = 1533083362431074354
+E_FOOTBALL_ROLE_ID = 1533083282072146062
+CATUR_ROLE_ID = 1475915903945277450
 
 REGIONAL_ROLES = [
     ("BALI", 1532525127995228291, "🏖️"),
@@ -40,9 +46,28 @@ REGIONAL_ROLE_IDS = [role_id for _, role_id, _ in REGIONAL_ROLES]
 ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
 REGIONAL_PANEL_IMAGE_URL = os.getenv("REGIONAL_PANEL_IMAGE_URL", "").strip()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+GAMES_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpgameserverrole.png")
 ZODIAC_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpzodiak.png")
 REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "reginoal 3.png")
 GENDER_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "gender.png")
+GAME_ROLE_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpgameserverrole.png")
+
+GAME_ROLE_EMOJI_SOURCES = [
+    ("Mobile Legends", 1449602863687794789, "role_ml", os.path.join(BASE_DIR, "emojirolepanel1", "Mobile Legends.jpg"), "game_ml", "🎮"),
+    ("Among Us", 1449603295046930443, "role_among", os.path.join(BASE_DIR, "emojirolepanel1", "among.png"), "game_among", "👽"),
+    ("Roblox", 1449603377150562354, "role_roblox", os.path.join(BASE_DIR, "emojirolepanel1", "roblox.png"), "game_roblox", "🧱"),
+    ("Free Fire", 1502158964857638924, "role_ff", os.path.join(BASE_DIR, "emojirolepanel1", "FreeFire.png"), "game_freefire", "🔥"),
+    ("Steam Gaming", 1521860590526664844, "role_steam_igaming", os.path.join(BASE_DIR, "emojirolepanel1", "steamgaming.png"), "game_steam", "🖥️"),
+    ("Valorant", 1521865058102149131, "role_valorant", os.path.join(BASE_DIR, "emojirolepanel1", "Valorant.jpg"), "game_valorant", "🔫"),
+    ("PUBG", PUBG_ROLE_ID, "role_pubg", os.path.join(BASE_DIR, "emojirolepanel1", "pubg MObile.jpg"), "game_pubg", "🔫"),
+    ("Clash of Clans", CLASH_OF_CLANS_ROLE_ID, "role_clashofclans", os.path.join(BASE_DIR, "emojirolepanel1", "Clash of Clans.png"), "game_clashofclans", "⚔️"),
+    ("Dead by Daylight", DEAD_BY_DAYLIGHT_ROLE_ID, "role_deadbydaylight", os.path.join(BASE_DIR, "emojirolepanel1", "DeadbyDaylight.png"), "game_deadbydaylight", "🪓"),
+    ("Minecraft", MINECRAFT_ROLE_ID, "role_minecraft", os.path.join(BASE_DIR, "emojirolepanel1", "minecraft.jpg"), "game_minecraft", "🧱"),
+    ("E-football", E_FOOTBALL_ROLE_ID, "role_efootball", os.path.join(BASE_DIR, "emojirolepanel1", "efootball.jpg"), "game_efootball", "⚽"),
+    ("Catur", CATUR_ROLE_ID, "role_catur", os.path.join(BASE_DIR, "emojirolepanel1", "catur.png"), "game_catur", "♟️"),
+]
+
+GAME_ROLE_EMOJI_CACHE: dict[str, discord.Emoji | discord.PartialEmoji | str] = {}
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
     ("Aries", 1532514788750655679, "♈"),
@@ -252,12 +277,87 @@ class MusicControlView(View):
             await interaction.response.send_message("❌ Bot tidak di voice channel.", ephemeral=True)
 
 
+def _emoji_fallback_for_role(role_label: str) -> str:
+    for label, _, _, _, _, fallback_emoji in GAME_ROLE_EMOJI_SOURCES:
+        if label == role_label:
+            return fallback_emoji
+    return "🎮"
+
+
+async def get_or_create_game_role_emoji(guild: discord.Guild, emoji_name: str, image_path: str, fallback_emoji: str):
+    cached = GAME_ROLE_EMOJI_CACHE.get(f"{guild.id}:{emoji_name}")
+    if cached is not None:
+        return cached
+
+    existing = discord.utils.get(guild.emojis, name=emoji_name)
+    if existing is not None:
+        GAME_ROLE_EMOJI_CACHE[f"{guild.id}:{emoji_name}"] = existing
+        return existing
+
+    if not os.path.exists(image_path):
+        GAME_ROLE_EMOJI_CACHE[f"{guild.id}:{emoji_name}"] = fallback_emoji
+        return fallback_emoji
+
+    try:
+        with open(image_path, "rb") as image_file:
+            created = await guild.create_custom_emoji(name=emoji_name, image=image_file.read())
+        GAME_ROLE_EMOJI_CACHE[f"{guild.id}:{emoji_name}"] = created
+        return created
+    except Exception:
+        GAME_ROLE_EMOJI_CACHE[f"{guild.id}:{emoji_name}"] = fallback_emoji
+        return fallback_emoji
+
+
+async def build_game_role_options(guild: discord.Guild | None):
+    options = []
+    for label, role_id, _, image_path, emoji_name, fallback_emoji in GAME_ROLE_EMOJI_SOURCES:
+        emoji_value = fallback_emoji
+        if guild is not None:
+            emoji_value = await get_or_create_game_role_emoji(guild, emoji_name, image_path, fallback_emoji)
+        options.append(discord.SelectOption(label=label, value=str(role_id), emoji=emoji_value))
+    return options
+
+
+class GameRoleSelect(discord.ui.Select):
+    def __init__(self, options: list[discord.SelectOption]):
+        super().__init__(
+            placeholder="Pick a role...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="game_role_select",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None:
+            await interaction.response.send_message("Panel ini hanya bisa dipakai di server.", ephemeral=True)
+            return
+
+        selected_role_id = int(self.values[0])
+        selected_role = guild.get_role(selected_role_id)
+        if selected_role is None:
+            await interaction.response.send_message("Role tidak ditemukan.", ephemeral=True)
+            return
+
+        if selected_role in member.roles:
+            await member.remove_roles(selected_role)
+            await interaction.response.send_message(f"❌ Role **{selected_role.name}** dihapus dari kamu.", ephemeral=True)
+        else:
+            await member.add_roles(selected_role)
+            await interaction.response.send_message(f"✅ Role **{selected_role.name}** berhasil diberikan!", ephemeral=True)
+
+
 class RoleButton(discord.ui.Button):
-    def __init__(self, label: str, role_id: int, custom_id: str):
+    def __init__(self, label: str, role_id: int, custom_id: str, emoji: str | None = None, row: int | None = None):
         super().__init__(
             label=label,
             style=discord.ButtonStyle.primary,
-            custom_id=custom_id
+            custom_id=custom_id,
+            emoji=emoji,
+            row=row,
         )
         self.role_id = role_id
 
@@ -276,15 +376,9 @@ class RoleButton(discord.ui.Button):
 
 
 class RolePanel(View):
-    def __init__(self):
+    def __init__(self, options: list[discord.SelectOption]):
         super().__init__(timeout=None)
-        self.add_item(RoleButton("Mobile Legends", 1449602863687794789, "role_ml"))
-        self.add_item(RoleButton("Among Us", 1449603295046930443, "role_among"))
-        self.add_item(RoleButton("Roblox", 1449603377150562354, "role_roblox"))
-        self.add_item(RoleButton("Free Fire", 1502158964857638924, "role_ff"))
-        self.add_item(RoleButton("Nobar", 1521857351651561595, "role_nobar"))
-        self.add_item(RoleButton("Steam Gaming", 1521860590526664844, "role_steam_gaming"))
-        self.add_item(RoleButton("Valorant", 1521865058102149131, "role_valorant"))
+        self.add_item(GameRoleSelect(options))
 
 
 class PrincessInfoButton(discord.ui.Button):
@@ -820,7 +914,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
-            embed.add_field(name="Role", value="/rolepanel (ambil role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)", inline=False)
+            embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -850,7 +944,9 @@ class Client(discord.Client):
             print("[Startup] WARNING: cookies.txt tidak ditemukan!")
 
         try:
-            self.add_view(RolePanel())
+            startup_guild = self.guilds[0] if self.guilds else None
+            startup_options = await build_game_role_options(startup_guild)
+            self.add_view(RolePanel(startup_options))
             print("Persistent RolePanel loaded")
             self.add_view(ZodiacRolePanel())
             print("Persistent ZodiacRolePanel loaded")
@@ -1109,6 +1205,18 @@ class Client(discord.Client):
             await message.channel.send('Pong! 🏓')
         elif msg == '!among':
             await message.channel.send(f"{role_mention(message.guild, AMONG_US_ROLE_ID, 'Among Us')} Ayo Among Us!")
+        elif msg == '!pubg':
+            await message.channel.send(f"{role_mention(message.guild, PUBG_ROLE_ID, 'PUBG')} Ayo PUBG!")
+        elif msg == '!clashofclans':
+            await message.channel.send(f"{role_mention(message.guild, CLASH_OF_CLANS_ROLE_ID, 'Clash of Clans')} Ayo Clash of Clans!")
+        elif msg == '!deadbydaylight':
+            await message.channel.send(f"{role_mention(message.guild, DEAD_BY_DAYLIGHT_ROLE_ID, 'Dead by Daylight')} Ayo Dead by Daylight!")
+        elif msg == '!minecraft':
+            await message.channel.send(f"{role_mention(message.guild, MINECRAFT_ROLE_ID, 'Minecraft')} Ayo Minecraft!")
+        elif msg == '!efootball':
+            await message.channel.send(f"{role_mention(message.guild, E_FOOTBALL_ROLE_ID, 'E-football')} Ayo E-football!")
+        elif msg == '!catur':
+            await message.channel.send(f"{role_mention(message.guild, CATUR_ROLE_ID, 'Catur')} Ayo Catur!")
         
         # ===== LIRIK COMMAND =====
         elif msg.startswith('!lirik '):
@@ -1370,10 +1478,18 @@ client = Client(intents=intents)
 
 @client.tree.command(name="rolepanel", description="Kirim panel ambil role")
 async def rolepanel(interaction: discord.Interaction):
-    await interaction.response.send_message(
-        "🎮 **Ambil Role Disini**\nKlik tombol di bawah untuk ambil atau hapus role kamu:",
-        view=RolePanel()
+    games_file, games_image_url = load_role_panel_image(GAMES_PANEL_IMAGE_PATH, "dpnpgameserverrole.png")
+    game_options = await build_game_role_options(interaction.guild)
+    embed = make_role_panel_embed(
+        title="DPNP SERVER - GAME ROLES",
+        description="Pilih role game di bawah. Klik lagi untuk melepas role yang sama.",
+        color=discord.Color.blurple(),
+        image_url=games_image_url,
     )
+    if games_file:
+        await interaction.response.send_message(embed=embed, view=RolePanel(game_options), file=games_file)
+    else:
+        await interaction.response.send_message(embed=embed, view=RolePanel(game_options))
 
 
 @client.tree.command(name="rolepanel2", description="Kirim panel info role princess")
