@@ -1217,6 +1217,8 @@ class Client(discord.Client):
             await message.channel.send('Hallo dengan Princess disini👋🏻')
         elif msg == '!kai':
             await message.channel.send('Halo halo bandung')
+        elif msg == '!mila':
+            await message.channel.send('sibuk jangan di ganggu')
 
 
 
