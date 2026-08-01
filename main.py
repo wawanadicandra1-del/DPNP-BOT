@@ -47,6 +47,7 @@ ZODIAC_PANEL_IMAGE_URL = os.getenv("ZODIAC_PANEL_IMAGE_URL", "").strip()
 REGIONAL_PANEL_IMAGE_URL = os.getenv("REGIONAL_PANEL_IMAGE_URL", "").strip()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 GAMES_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpgameserverrole.png")
+WELCOME_GOODBYE_IMAGE_PATH = os.path.join(BASE_DIR, "dpnp.png")
 ZODIAC_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpzodiak.png")
 REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "reginoal 3.png")
 GENDER_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "gender.png")
@@ -1015,14 +1016,19 @@ class Client(discord.Client):
     async def on_member_join(self, member):
         channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
         if channel:
+            welcome_file, welcome_image_url = load_role_panel_image(WELCOME_GOODBYE_IMAGE_PATH, "dpnp-welcome.png")
             embed = discord.Embed(
-                title="🎉 WELCOME!",
-                description=f"Halo {member.mention}, selamat datang di **{member.guild.name}**!",
+                title="Selamat Datang",
+                description=f"Halo {member.mention}, selamat datang di DPNP. Semoga enjoy!",
                 color=discord.Color.blue()
             )
             embed.set_thumbnail(url=member.display_avatar.url)
-            embed.set_image(url="https://i.imgur.com/OfeFMXC.png")
-            await channel.send(embed=embed)
+            if welcome_image_url:
+                embed.set_image(url=welcome_image_url)
+            if welcome_file:
+                await channel.send(embed=embed, file=welcome_file)
+            else:
+                await channel.send(embed=embed)
 
         rules_channel = member.guild.get_channel(RULES_CHANNEL_ID)
         take_role_channel = member.guild.get_channel(TAKE_ROLE_CHANNEL_ID)
@@ -1032,7 +1038,7 @@ class Client(discord.Client):
         greet_channel = member.guild.get_channel(JOIN_GREET_CHANNEL_ID)
         if greet_channel:
             await greet_channel.send(
-                f"Halo {member.mention}, selamat datang! Cek {rules_mention} dan ambil role di {take_role_mention} ya."
+                f"Halo {member.mention}, selamat datang di DPNP. Semoga enjoy! Cek {rules_mention} dan ambil role di {take_role_mention} ya."
             )
 
         role = member.guild.get_role(AUTO_ROLE_ID)
@@ -1067,22 +1073,27 @@ class Client(discord.Client):
     async def on_member_remove(self, member):
         channel = member.guild.get_channel(GOODBYE_CHANNEL_ID)
         if channel:
+            goodbye_file, goodbye_image_url = load_role_panel_image(WELCOME_GOODBYE_IMAGE_PATH, "dpnp-goodbye.png")
             embed = discord.Embed(
-                title="👋 GOODBYE!",
-                description=f"{member.name} telah keluar dari **{member.guild.name}**.\nSemoga kita ketemu lagi ya!",
+                title="Bye Bye",
+                description=f"{member.name} telah keluar dari DPNP. Bye bye, semoga kita bertemu lagi!",
                 color=discord.Color.red()
             )
             embed.set_thumbnail(url=member.display_avatar.url)
-            embed.set_image(url="https://i.imgur.com/k3II9KX.jpeg")
-            await channel.send(embed=embed)
+            if goodbye_image_url:
+                embed.set_image(url=goodbye_image_url)
+            if goodbye_file:
+                await channel.send(embed=embed, file=goodbye_file)
+            else:
+                await channel.send(embed=embed)
 
         try:
             dm_embed = discord.Embed(
-                title="Terima kasih sudah pernah jadi bagian dari kami 🤍",
+                title="Bye Bye",
                 description=(
                     f"Hai {member.name},\n\n"
-                    f"Terima kasih sudah pernah bergabung di **{member.guild.name}**.\n"
-                    f"Semoga betah di tempat baru dan semoga hal-hal baik selalu datang ke kamu.\n\n"
+                    f"Bye bye, semoga kita bertemu lagi di DPNP.\n"
+                    f"Semoga hal-hal baik selalu datang ke kamu.\n\n"
                     f"Pintu kami selalu terbuka kalau suatu saat mau kembali ✨"
                 ),
                 color=discord.Color.dark_blue()
@@ -1510,9 +1521,9 @@ async def rolepanel2(interaction: discord.Interaction):
         title="Verif Gender",
         description=(
             "Klik tombol sesuai yang ingin anda pilih\n\n"
-            "🤵 Role gentelman menandakan bahwa anda adalah pria di server ini\n\n"
-            "👸 Role ladies menandakan bahwa anda adalah perempuan di server ini\n\n"
-            "Note: Untuk Role Ladies sendiri anda bisa menghubungi @The Aristocracy untuk melakukan verifikasi bahwa nyaa memang benar benar ladies silahkan create tiket melalui #❓︱help untuk terhubung dengan administrator server."
+            "🤵 Role prince menandakan bahwa anda adalah pria di server ini\n\n"
+            "👸 Role princess menandakan bahwa anda adalah perempuan di server ini\n\n"
+            "Note: Untuk Role princess sendiri anda bisa menghubungi @The Aristocracy untuk melakukan verifikasi bahwa nyaa memang benar benar princess silahkan create tiket melalui #❓︱help untuk terhubung dengan administrator server."
         ),
         color=discord.Color.pink(),
         image_url=gender_image_url,
