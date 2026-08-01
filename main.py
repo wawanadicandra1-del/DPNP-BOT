@@ -321,9 +321,9 @@ async def build_game_role_options(guild: discord.Guild | None):
 class GameRoleSelect(discord.ui.Select):
     def __init__(self, options: list[discord.SelectOption]):
         super().__init__(
-            placeholder="Pick a role...",
+            placeholder="Pick one or more roles...",
             min_values=1,
-            max_values=1,
+            max_values=max(1, len(options)),
             options=options,
             custom_id="game_role_select",
         )
@@ -336,18 +336,29 @@ class GameRoleSelect(discord.ui.Select):
             await interaction.response.send_message("Panel ini hanya bisa dipakai di server.", ephemeral=True)
             return
 
-        selected_role_id = int(self.values[0])
-        selected_role = guild.get_role(selected_role_id)
-        if selected_role is None:
-            await interaction.response.send_message("Role tidak ditemukan.", ephemeral=True)
+        selected_roles = []
+        selected_names = []
+
+        for selected_role_id_str in self.values:
+            selected_role = guild.get_role(int(selected_role_id_str))
+            if selected_role is None:
+                continue
+            selected_names.append(selected_role.name)
+            if selected_role not in member.roles:
+                selected_roles.append(selected_role)
+
+        if not selected_roles:
+            await interaction.response.send_message(
+                f"Role yang dipilih sudah kamu punya: {', '.join(selected_names)}",
+                ephemeral=True,
+            )
             return
 
-        if selected_role in member.roles:
-            await member.remove_roles(selected_role)
-            await interaction.response.send_message(f"❌ Role **{selected_role.name}** dihapus dari kamu.", ephemeral=True)
-        else:
-            await member.add_roles(selected_role)
-            await interaction.response.send_message(f"✅ Role **{selected_role.name}** berhasil diberikan!", ephemeral=True)
+        await member.add_roles(*selected_roles)
+        await interaction.response.send_message(
+            f"✅ Role berhasil diberikan: {', '.join(role.name for role in selected_roles)}",
+            ephemeral=True,
+        )
 
 
 class RoleButton(discord.ui.Button):
@@ -1482,7 +1493,7 @@ async def rolepanel(interaction: discord.Interaction):
     game_options = await build_game_role_options(interaction.guild)
     embed = make_role_panel_embed(
         title="DPNP SERVER - GAME ROLES",
-        description="Pilih role game di bawah. Klik lagi untuk melepas role yang sama.",
+        description="Pilih satu atau banyak role game di bawah, lalu submit untuk ambil semuanya.",
         color=discord.Color.blurple(),
         image_url=games_image_url,
     )
