@@ -40,6 +40,8 @@ REGIONAL_ROLES = [
     ("PAPUA", 1532525895821037649, "🌋"),
     ("SULAWESI", 1532525394429743345, "🛣️"),
     ("SUMATRA", 1532525469671358646, "🏜️"),
+    ("NUSA TENGGARA", 1533099143403405382, "🌊"),
+    ("MALAYSIA", 1533099187888066670, "🇲🇾"),
 ]
 REGIONAL_ROLE_IDS = [role_id for _, role_id, _ in REGIONAL_ROLES]
 
@@ -60,6 +62,7 @@ GAME_ROLE_EMOJI_SOURCES = [
     ("Free Fire", 1502158964857638924, "role_ff", os.path.join(BASE_DIR, "emojirolepanel1", "FreeFire.png"), "game_freefire", "🔥"),
     ("Steam Gaming", 1521860590526664844, "role_steam_igaming", os.path.join(BASE_DIR, "emojirolepanel1", "steamgaming.png"), "game_steam", "🖥️"),
     ("Valorant", 1521865058102149131, "role_valorant", os.path.join(BASE_DIR, "emojirolepanel1", "Valorant.jpg"), "game_valorant", "🔫"),
+    ("Meccha Chameleon", 1533083014966284368, "role_meccha_chameleon", os.path.join(BASE_DIR, "emojirolepanel1", "mecccha chameleon.png"), "game_meccha_chameleon", "🦎"),
     ("PUBG", PUBG_ROLE_ID, "role_pubg", os.path.join(BASE_DIR, "emojirolepanel1", "pubg MObile.jpg"), "game_pubg", "🔫"),
     ("Clash of Clans", CLASH_OF_CLANS_ROLE_ID, "role_clashofclans", os.path.join(BASE_DIR, "emojirolepanel1", "Clash of Clans.png"), "game_clashofclans", "⚔️"),
     ("Dead by Daylight", DEAD_BY_DAYLIGHT_ROLE_ID, "role_deadbydaylight", os.path.join(BASE_DIR, "emojirolepanel1", "DeadbyDaylight.png"), "game_deadbydaylight", "🪓"),
@@ -69,6 +72,7 @@ GAME_ROLE_EMOJI_SOURCES = [
 ]
 
 GAME_ROLE_EMOJI_CACHE: dict[str, discord.Emoji | discord.PartialEmoji | str] = {}
+REGIONAL_ROLE_EMOJI_CACHE: dict[str, discord.Emoji | discord.PartialEmoji | str] = {}
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
     ("Aries", 1532514788750655679, "♈"),
@@ -319,6 +323,53 @@ async def build_game_role_options(guild: discord.Guild | None):
     return options
 
 
+async def get_or_create_regional_role_emoji(guild: discord.Guild | None, role_label: str):
+    if guild is None:
+        return "🇲🇾" if role_label == "MALAYSIA" else None
+
+    cache_key = f"{guild.id}:{role_label}"
+    cached = REGIONAL_ROLE_EMOJI_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    if role_label != "MALAYSIA":
+        for label, _, emoji in REGIONAL_ROLES:
+            if label == role_label:
+                REGIONAL_ROLE_EMOJI_CACHE[cache_key] = emoji
+                return emoji
+        return None
+
+    emoji_name = "regional_malaysia"
+    image_path = os.path.join(BASE_DIR, "malay.jpg")
+    existing = discord.utils.get(guild.emojis, name=emoji_name)
+    if existing is not None:
+        REGIONAL_ROLE_EMOJI_CACHE[cache_key] = existing
+        return existing
+
+    if not os.path.exists(image_path):
+        REGIONAL_ROLE_EMOJI_CACHE[cache_key] = "🇲🇾"
+        return "🇲🇾"
+
+    try:
+        with open(image_path, "rb") as image_file:
+            created = await guild.create_custom_emoji(name=emoji_name, image=image_file.read())
+        REGIONAL_ROLE_EMOJI_CACHE[cache_key] = created
+        return created
+    except Exception:
+        REGIONAL_ROLE_EMOJI_CACHE[cache_key] = "🇲🇾"
+        return "🇲🇾"
+
+
+async def build_regional_role_options(guild: discord.Guild | None):
+    options = []
+    for label, role_id, fallback_emoji in REGIONAL_ROLES:
+        emoji_value = await get_or_create_regional_role_emoji(guild, label)
+        if emoji_value is None:
+            emoji_value = fallback_emoji
+        options.append(discord.SelectOption(label=label, value=str(role_id), emoji=emoji_value))
+    return options
+
+
 class GameRoleSelect(discord.ui.Select):
     def __init__(self, options: list[discord.SelectOption]):
         super().__init__(
@@ -468,11 +519,7 @@ class ZodiacRolePanel(View):
 
 
 class RegionalRoleSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label=name, value=str(role_id), emoji=emoji)
-            for name, role_id, emoji in REGIONAL_ROLES
-        ]
+    def __init__(self, options: list[discord.SelectOption]):
         super().__init__(
             placeholder="Pilih satu role regional...",
             min_values=1,
@@ -509,9 +556,9 @@ class RegionalRoleSelect(discord.ui.Select):
 
 
 class RegionalRolePanel(View):
-    def __init__(self):
+    def __init__(self, options: list[discord.SelectOption]):
         super().__init__(timeout=None)
-        self.add_item(RegionalRoleSelect())
+        self.add_item(RegionalRoleSelect(options))
 
 
 def make_role_panel_embed(title: str, description: str, color: discord.Color, image_url: str = "") -> discord.Embed:
@@ -962,7 +1009,8 @@ class Client(discord.Client):
             print("Persistent RolePanel loaded")
             self.add_view(ZodiacRolePanel())
             print("Persistent ZodiacRolePanel loaded")
-            self.add_view(RegionalRolePanel())
+            regional_options = await build_regional_role_options(startup_guild)
+            self.add_view(RegionalRolePanel(regional_options))
             print("Persistent RegionalRolePanel loaded")
         except Exception as e:
             print("Gagal load RolePanel:", e)
@@ -1556,6 +1604,7 @@ async def rolepanel4(interaction: discord.Interaction):
     regional_file, regional_image_url = load_role_panel_image(REGIONAL_PANEL_IMAGE_PATH, "dpnpregional.png")
     if not regional_image_url:
         regional_image_url = REGIONAL_PANEL_IMAGE_URL
+    regional_options = await build_regional_role_options(interaction.guild)
     embed = make_role_panel_embed(
         title="DPNP SERVER - REGIONAL ROLES",
         description="Pilih satu role regional dari menu di bawah.",
@@ -1563,9 +1612,9 @@ async def rolepanel4(interaction: discord.Interaction):
         image_url=regional_image_url,
     )
     if regional_file:
-        await interaction.response.send_message(embed=embed, view=RegionalRolePanel(), file=regional_file)
+        await interaction.response.send_message(embed=embed, view=RegionalRolePanel(regional_options), file=regional_file)
     else:
-        await interaction.response.send_message(embed=embed, view=RegionalRolePanel())
+        await interaction.response.send_message(embed=embed, view=RegionalRolePanel(regional_options))
 
 if not TOKEN:
     raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
