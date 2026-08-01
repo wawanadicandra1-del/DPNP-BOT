@@ -54,6 +54,7 @@ ZODIAC_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpzodiak.png")
 REGIONAL_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "reginoal 3.png")
 GENDER_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "gender.png")
 GAME_ROLE_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnpgameserverrole.png")
+EXTRA_ROLE_PANEL_IMAGE_PATH = os.path.join(BASE_DIR, "dpnproleextra.png")
 
 GAME_ROLE_EMOJI_SOURCES = [
     ("Mobile Legends", 1449602863687794789, "role_ml", os.path.join(BASE_DIR, "emojirolepanel1", "Mobile Legends.jpg"), "game_ml", "🎮"),
@@ -71,8 +72,16 @@ GAME_ROLE_EMOJI_SOURCES = [
     ("Catur", CATUR_ROLE_ID, "role_catur", os.path.join(BASE_DIR, "emojirolepanel1", "catur.png"), "game_catur", "♟️"),
 ]
 
+EXTRA_ROLE_EMOJI_SOURCES = [
+    ("Nobar", 1521857351651561595, "role_nobar", os.path.join(BASE_DIR, "emojirolepanel5", "nobar.png"), "extra_nobar", "🎥"),
+    ("Announcements", 1533084663403511979, "role_announcements", os.path.join(BASE_DIR, "emojirolepanel5", "Announcements.png"), "extra_announcements", "📢"),
+    ("Discord Ping", 1533105173793214726, "role_discord_ping", os.path.join(BASE_DIR, "emojirolepanel5", "Discord Ping.jpg"), "extra_discord_ping", "🔔"),
+    ("Yapping", 1533084494687371264, "role_yapping", os.path.join(BASE_DIR, "emojirolepanel5", "Yapping.png"), "extra_yapping", "💬"),
+]
+
 GAME_ROLE_EMOJI_CACHE: dict[str, discord.Emoji | discord.PartialEmoji | str] = {}
 REGIONAL_ROLE_EMOJI_CACHE: dict[str, discord.Emoji | discord.PartialEmoji | str] = {}
+EXTRA_ROLE_EMOJI_CACHE: dict[str, discord.Emoji | discord.PartialEmoji | str] = {}
 ZODIAC_ROLES = [
     ("Aquarius", 1532514717623648366, "♒"),
     ("Aries", 1532514788750655679, "♈"),
@@ -561,6 +570,91 @@ class RegionalRolePanel(View):
         self.add_item(RegionalRoleSelect(options))
 
 
+async def get_or_create_extra_role_emoji(guild: discord.Guild | None, emoji_name: str, image_path: str, fallback_emoji: str):
+    if guild is None:
+        return fallback_emoji
+
+    cache_key = f"{guild.id}:{emoji_name}"
+    cached = EXTRA_ROLE_EMOJI_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    existing = discord.utils.get(guild.emojis, name=emoji_name)
+    if existing is not None:
+        EXTRA_ROLE_EMOJI_CACHE[cache_key] = existing
+        return existing
+
+    if not os.path.exists(image_path):
+        EXTRA_ROLE_EMOJI_CACHE[cache_key] = fallback_emoji
+        return fallback_emoji
+
+    try:
+        with open(image_path, "rb") as image_file:
+            created = await guild.create_custom_emoji(name=emoji_name, image=image_file.read())
+        EXTRA_ROLE_EMOJI_CACHE[cache_key] = created
+        return created
+    except Exception:
+        EXTRA_ROLE_EMOJI_CACHE[cache_key] = fallback_emoji
+        return fallback_emoji
+
+
+async def build_extra_role_options(guild: discord.Guild | None):
+    options = []
+    for label, role_id, _, image_path, emoji_name, fallback_emoji in EXTRA_ROLE_EMOJI_SOURCES:
+        emoji_value = await get_or_create_extra_role_emoji(guild, emoji_name, image_path, fallback_emoji)
+        options.append(discord.SelectOption(label=label, value=str(role_id), emoji=emoji_value))
+    return options
+
+
+class ExtraRoleSelect(discord.ui.Select):
+    def __init__(self, options: list[discord.SelectOption]):
+        super().__init__(
+            placeholder="Pick one or more roles...",
+            min_values=1,
+            max_values=max(1, len(options)),
+            options=options,
+            custom_id="extra_role_select",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None:
+            await interaction.response.send_message("Panel ini hanya bisa dipakai di server.", ephemeral=True)
+            return
+
+        selected_roles = []
+        selected_names = []
+
+        for selected_role_id_str in self.values:
+            selected_role = guild.get_role(int(selected_role_id_str))
+            if selected_role is None:
+                continue
+            selected_names.append(selected_role.name)
+            if selected_role not in member.roles:
+                selected_roles.append(selected_role)
+
+        if not selected_roles:
+            await interaction.response.send_message(
+                f"Role yang dipilih sudah kamu punya: {', '.join(selected_names)}",
+                ephemeral=True,
+            )
+            return
+
+        await member.add_roles(*selected_roles)
+        await interaction.response.send_message(
+            f"✅ Role berhasil diberikan: {', '.join(role.name for role in selected_roles)}",
+            ephemeral=True,
+        )
+
+
+class ExtraRolePanel(View):
+    def __init__(self, options: list[discord.SelectOption]):
+        super().__init__(timeout=None)
+        self.add_item(ExtraRoleSelect(options))
+
+
 def make_role_panel_embed(title: str, description: str, color: discord.Color, image_url: str = "") -> discord.Embed:
     embed = discord.Embed(
         title=title,
@@ -973,7 +1067,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
-            embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur", inline=False)
+            embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1012,6 +1106,9 @@ class Client(discord.Client):
             regional_options = await build_regional_role_options(startup_guild)
             self.add_view(RegionalRolePanel(regional_options))
             print("Persistent RegionalRolePanel loaded")
+            extra_options = await build_extra_role_options(startup_guild)
+            self.add_view(ExtraRolePanel(extra_options))
+            print("Persistent ExtraRolePanel loaded")
         except Exception as e:
             print("Gagal load RolePanel:", e)
 
@@ -1615,6 +1712,22 @@ async def rolepanel4(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, view=RegionalRolePanel(regional_options), file=regional_file)
     else:
         await interaction.response.send_message(embed=embed, view=RegionalRolePanel(regional_options))
+
+
+@client.tree.command(name="rolepanel5", description="Kirim panel role extra")
+async def rolepanel5(interaction: discord.Interaction):
+    extra_file, extra_image_url = load_role_panel_image(EXTRA_ROLE_PANEL_IMAGE_PATH, "dpnproleextra.png")
+    extra_options = await build_extra_role_options(interaction.guild)
+    embed = make_role_panel_embed(
+        title="DPNP SERVER - ROLE EXTRA",
+        description="Pilih satu atau banyak role extra di bawah, lalu submit untuk ambil semuanya.",
+        color=discord.Color.blurple(),
+        image_url=extra_image_url,
+    )
+    if extra_file:
+        await interaction.response.send_message(embed=embed, view=ExtraRolePanel(extra_options), file=extra_file)
+    else:
+        await interaction.response.send_message(embed=embed, view=ExtraRolePanel(extra_options))
 
 if not TOKEN:
     raise RuntimeError("TOKEN belum di-set. Isi environment variable TOKEN di Railway.")
