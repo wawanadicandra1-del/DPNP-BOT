@@ -18,7 +18,6 @@ BOOSTER_ROLE_ID = 1437740399786459247
 AUTO_ROLE_ID = 1438899323336130802
 RULES_CHANNEL_ID = 1459140957932093652
 TAKE_ROLE_CHANNEL_ID = 1417152449650626693
-LEVEL_UP_CHANNEL_ID = 1467701484102619257
 PRINCESS_ROLE_ID = 1417156113232826450
 PRINCE_ROLE_ID = 1417156158518464594
 MOBILE_LEGENDS_ROLE_ID = 1449602863687794789
@@ -112,30 +111,6 @@ def remove_other_roles(guild: discord.Guild | None, member: discord.Member, role
     roles = [guild.get_role(role_id) for role_id in role_ids]
     roles = [role for role in roles if role is not None]
     return [role for role in roles if role.id != selected_role_id and role in member.roles]
-
-LEVEL_ROLES = {
-    5: 1521777404849160243,
-    10: 1521777570138558494,
-    20: 1521777608444870828,
-    30: 1521777645178716300,
-    40: 1521777656889081876,
-    60: 1521777827861499974,
-    75: 1521777951870287882,
-    85: 1521778690143293450,
-    100: 1521778014533193748
-}
-
-BADGES = {
-    5: "🥉 Bocil Baru",
-    10: "🥈 Tukang Ngobrol",
-    20: "🥇 Anak Voice",
-    30: "🎮 Anak Mabar",
-    40: "🔥 warga asli",
-    60: "💎 Sesepuh",
-    75: "👑 Penguasa Tongkrongan",
-    85: "🐐 Sepuh Abadi",
-    100: "🐐 GOAT"
-}
 
 XP_FILE = "xp_data.json"
 DAILY_XP = 50
@@ -672,109 +647,6 @@ def load_role_panel_image(image_path: str, attachment_name: str):
     return None, ""
 
 
-class LeaderboardView(View):
-    def __init__(self, author_id: int, guild: discord.Guild, sorted_users, per_page: int = 10):
-        super().__init__(timeout=180)
-        self.author_id = author_id
-        self.guild = guild
-        self.per_page = per_page
-        self.entries = []
-        self.page = 0
-        self.message = None
-
-        rank_no = 1
-        for user_id, data in sorted_users:
-            member = guild.get_member(int(user_id))
-            if not member:
-                continue
-            level = data["level"]
-            xp = data["xp"]
-            badge = BADGES.get(level, "Pemula")
-            self.entries.append((rank_no, member, level, xp, badge))
-            rank_no += 1
-
-        self.total_pages = max(1, (len(self.entries) + self.per_page - 1) // self.per_page)
-        author_index = next((i for i, item in enumerate(self.entries) if item[1].id == self.author_id), None)
-        if author_index is not None:
-            self.page = author_index // self.per_page
-
-        self._update_buttons()
-
-    def _make_embed(self) -> discord.Embed:
-        start = self.page * self.per_page
-        end = start + self.per_page
-        page_entries = self.entries[start:end]
-
-        lines = []
-        for rank_no, member, level, xp, badge in page_entries:
-            marker = ">> " if member.id == self.author_id else ""
-            lines.append(f"{marker}**#{rank_no}. {member.name}** - Level {level} | {xp} XP | {badge}")
-
-        description = "\n".join(lines) if lines else "Belum ada data"
-        embed = discord.Embed(
-            title="Leaderboard Server",
-            description=description,
-            color=discord.Color.gold()
-        )
-        embed.set_footer(text=f"Halaman {self.page + 1}/{self.total_pages} | Total user: {len(self.entries)}")
-        return embed
-
-    def _update_buttons(self):
-        at_start = self.page <= 0
-        at_end = self.page >= self.total_pages - 1
-        self.first_page.disabled = at_start
-        self.prev_page.disabled = at_start
-        self.next_page.disabled = at_end
-        self.last_page.disabled = at_end
-        self.page_info.label = f"{self.page + 1}/{self.total_pages}"
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.author_id:
-            await interaction.response.send_message(
-                "Tombol ini cuma buat yang jalankan command !top.",
-                ephemeral=True
-            )
-            return False
-        return True
-
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if self.message:
-            try:
-                await self.message.edit(view=self)
-            except:
-                pass
-
-    @discord.ui.button(label="<<", style=discord.ButtonStyle.secondary, row=0)
-    async def first_page(self, interaction: discord.Interaction, button: Button):
-        self.page = 0
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._make_embed(), view=self)
-
-    @discord.ui.button(label="<", style=discord.ButtonStyle.secondary, row=0)
-    async def prev_page(self, interaction: discord.Interaction, button: Button):
-        self.page = max(0, self.page - 1)
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._make_embed(), view=self)
-
-    @discord.ui.button(label="1/1", style=discord.ButtonStyle.secondary, disabled=True, row=0)
-    async def page_info(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-
-    @discord.ui.button(label=">", style=discord.ButtonStyle.secondary, row=0)
-    async def next_page(self, interaction: discord.Interaction, button: Button):
-        self.page = min(self.total_pages - 1, self.page + 1)
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._make_embed(), view=self)
-
-    @discord.ui.button(label=">>", style=discord.ButtonStyle.secondary, row=0)
-    async def last_page(self, interaction: discord.Interaction, button: Button):
-        self.page = self.total_pages - 1
-        self._update_buttons()
-        await interaction.response.edit_message(embed=self._make_embed(), view=self)
-
-
 class Client(discord.Client):
     music_queues = {}
     now_playing = {}
@@ -1066,7 +938,7 @@ class Client(discord.Client):
         async def help_command(interaction: discord.Interaction):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
-            embed.add_field(name="XP & Level", value="!top\n!rank\n!profile\n!daily", inline=False)
+            embed.add_field(name="XP", value="!profile\n!daily", inline=False)
             embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
@@ -1130,32 +1002,7 @@ class Client(discord.Client):
 
     # ================= VOICE XP =================
     async def on_voice_state_update(self, member, before, after):
-        if before.channel is None and after.channel is not None:
-            voice_join_time[member.id] = datetime.datetime.now()
-        elif before.channel is not None and after.channel is None:
-            if member.id in voice_join_time:
-                join_time = voice_join_time.pop(member.id)
-                duration = (datetime.datetime.now() - join_time).total_seconds()
-                xp_earned = int(duration // 120)
-                if xp_earned > 0:
-                    leveled_up = self.add_xp(member, xp_earned)
-                    if leveled_up:
-                        new_level = xp_data[str(member.id)]["level"]
-                        channel = member.guild.get_channel(LEVEL_UP_CHANNEL_ID)
-                        if channel:
-                            embed = discord.Embed(
-                                title="🎉 LEVEL UP!",
-                                description=f"{member.mention} naik ke **Level {new_level}** 🔥 (Voice Activity)",
-                                color=discord.Color.gold()
-                            )
-                            await channel.send(embed=embed)
-                        if new_level in LEVEL_ROLES:
-                            role = member.guild.get_role(LEVEL_ROLES[new_level])
-                            if role:
-                                try:
-                                    await member.add_roles(role)
-                                except:
-                                    pass
+        return
 
     # ================= WELCOME =================
     async def on_member_join(self, member):
@@ -1343,24 +1190,7 @@ class Client(discord.Client):
         if now - last_time >= XP_COOLDOWN:
             last_message_time[message.author.id] = now
             xp_gain = random.randint(5, 15) * xp_multiplier
-            leveled_up = self.add_xp(message.author, xp_gain)
-            if leveled_up:
-                new_level = xp_data[str(message.author.id)]["level"]
-                channel = message.guild.get_channel(LEVEL_UP_CHANNEL_ID)
-                if channel:
-                    embed = discord.Embed(
-                        title="🎉 LEVEL UP!",
-                        description=f"{message.author.mention} naik ke **Level {new_level}** 🔥",
-                        color=discord.Color.gold()
-                    )
-                    await channel.send(embed=embed)
-                if new_level in LEVEL_ROLES:
-                    role = message.guild.get_role(LEVEL_ROLES[new_level])
-                    if role:
-                        try:
-                            await message.author.add_roles(role)
-                        except:
-                            pass
+            self.add_xp(message.author, xp_gain)
 
         if msg == '!halo':
             await message.channel.send('Halo juga! 👋')
@@ -1506,10 +1336,6 @@ class Client(discord.Client):
                 color=member.color if member.color != discord.Color.default() else discord.Color.blue()
             )
             embed.set_thumbnail(url=member.display_avatar.url)
-            level = xp_data.get(str(member.id), {}).get("level", 1)
-            badge = BADGES.get(level, "Pemula")
-            embed.add_field(name="🏅 Badge", value=badge, inline=False)
-            embed.add_field(name="⭐ Level", value=level, inline=False)
             embed.add_field(name="🆔 User ID", value=member.id, inline=False)
             embed.add_field(name="📛 Username", value=member.name, inline=False)
             embed.add_field(name="📅 Akun Dibuat", value=member.created_at.strftime("%d %B %Y"), inline=False)
@@ -1597,44 +1423,6 @@ class Client(discord.Client):
                 self.add_xp(message.author, DAILY_XP)
                 await message.channel.send(f"🎁 Kamu dapat {DAILY_XP} XP hari ini!")
 
-        elif msg == '!top':
-            sorted_users = sorted(xp_data.items(), key=lambda x: (x[1]["level"], x[1]["xp"]), reverse=True)
-            view = LeaderboardView(message.author.id, message.guild, sorted_users, per_page=10)
-            sent_message = await message.channel.send(embed=view._make_embed(), view=view)
-            view.message = sent_message
-
-        elif msg.startswith('!rank'):
-            member = message.mentions[0] if message.mentions else message.author
-            user_id = str(member.id)
-            if user_id not in xp_data:
-                await message.channel.send(f"{member.mention} belum punya data XP 📊")
-                return
-            data = xp_data[user_id]
-            level = data["level"]
-            current_xp = data["xp"]
-            xp_needed = level * 100
-            progress_percent = int((current_xp / xp_needed) * 100) if xp_needed > 0 else 0
-            filled = "█" * (progress_percent // 10)
-            empty = "░" * (10 - (progress_percent // 10))
-            progress_bar = f"{filled}{empty} {progress_percent}%"
-            badge = BADGES.get(level, "Pemula")
-            sorted_users = sorted(xp_data.items(), key=lambda x: (x[1]["level"], x[1]["xp"]), reverse=True)
-            rank = 1
-            for idx, (uid, udata) in enumerate(sorted_users, start=1):
-                if uid == user_id:
-                    rank = idx
-                    break
-            embed = discord.Embed(
-                title=f"📊 Rank {member.name}",
-                color=member.color if member.color != discord.Color.default() else discord.Color.blue()
-            )
-            embed.set_thumbnail(url=member.display_avatar.url)
-            embed.add_field(name="🏆 Ranking Global", value=f"#{rank} dari {len(xp_data)}", inline=False)
-            embed.add_field(name="🏅 Badge", value=badge, inline=False)
-            embed.add_field(name="⭐ Level", value=level, inline=False)
-            embed.add_field(name="✨ XP Progress", value=f"{current_xp} / {xp_needed} XP", inline=False)
-            embed.add_field(name="📈 Progress Bar", value=progress_bar, inline=False)
-            await message.channel.send(embed=embed)
 
 intents = discord.Intents.default()
 intents.message_content = True
