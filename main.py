@@ -2,6 +2,7 @@ import discord
 import random
 import json
 import os
+import asyncio
 import datetime
 import shutil
 
@@ -669,59 +670,53 @@ class Client(discord.Client):
                 source=next_track['filename'],
                 **ffmpeg_opts
             )
-
-    async def search_and_play(self, message, query):
-        import yt_dlp
-        import os
-        import requests
-        # Deteksi link Spotify
-        if "open.spotify.com/track" in query:
+            # Set now playing and actually play the track
             try:
-                # Ambil track ID
-                track_id = query.split("/")[-1].split("?")[0]
-                # Ambil metadata dari oEmbed (tanpa API key)
-                r = requests.get(f"https://open.spotify.com/oembed?url=https://open.spotify.com/track/{track_id}")
-                data = r.json()
-                title = data['title']
-                artist = data['author_name']
-                search_query = f"{title} {artist}"
-                await message.channel.send(f"🔎 Mencari lagu Spotify di YouTube: {search_query}")
-            except Exception as e:
-                await message.channel.send(f"❌ Gagal ambil info dari Spotify: {str(e)[:200]}")
-                return
-        else:
-            search_query = query
+                self.now_playing[guild.id] = next_track
 
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'quiet': True,
-            'noplaylist': True,
-            'default_search': 'ytsearch1',
-            'outtmpl': 'song.%(ext)s',
-        }
-        # Tambahkan cookies.txt jika ada
-        if os.path.exists('cookies.txt'):
-            ydl_opts['cookiefile'] = 'cookies.txt'
+                def _after_play(error):
+                    if error:
+                        print(f"[Music] Playback error: {error}")
+                    try:
+                        asyncio.run_coroutine_threadsafe(
+                            self._on_track_end(guild, channel, message_channel, next_track),
+                            self.loop
+                        )
+                    except Exception as e:
+                        print("[Music] Failed schedule next track:", e)
+
+                vc.play(audio_source, after=_after_play)
+                await message_channel.send(f"▶️ Now Playing: **{next_track.get('title', 'Unknown')}**")
+            except Exception as e:
+                print("[Music] Gagal memulai pemutaran:", e)
+                # schedule next track attempt
+                try:
+                    asyncio.run_coroutine_threadsafe(self.play_next(guild, channel, message_channel), self.loop)
+                except Exception:
+                    pass
+
+    async def _on_track_end(self, guild, channel, message_channel, played_track):
+        # cleanup file if exists
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(search_query, download=True)
-                if 'entries' in info:
-                    info = info['entries'][0]
-                filename = ydl.prepare_filename(info)
-        except Exception as e:
-            await message.channel.send(f"❌ Gagal memutar lagu: {str(e)[:400]}")
-            return
-        if not message.author.voice:
-            await message.channel.send("❌ Kamu harus join voice channel dulu!")
-            return
-        channel = message.author.voice.channel
-        queue = self.music_queues.setdefault(message.guild.id, [])
-        queue.append({'title': info['title'], 'filename': filename, 'webpage_url': info.get('webpage_url'), 'uploader': info.get('uploader', 'YouTube')})
-        self.music_queues[message.guild.id] = queue
-        if not message.guild.voice_client or not message.guild.voice_client.is_playing():
-            await self.play_next(message.guild, channel, message.channel)
-        else:
-            await message.channel.send(f"➕ Ditambahkan ke antrian: {info['title']}")
+            filename = played_track.get('filename')
+            if filename and os.path.exists(filename):
+                try:
+                    os.remove(filename)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # clear now playing
+        try:
+            self.now_playing[guild.id] = None
+        except Exception:
+            pass
+
+        # play next if queue has items
+        queue = self.music_queues.get(guild.id, [])
+        if queue:
+            await self.play_next(guild, channel, message_channel)
 
     # ===== HELPER: DOWNLOAD DENGAN FALLBACK =====
     async def download_track(self, query, is_url=False):
