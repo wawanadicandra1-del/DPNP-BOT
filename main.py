@@ -989,6 +989,12 @@ class Client(discord.Client):
             startup_options = await build_game_role_options(startup_guild)
             self.add_view(RolePanel(startup_options))
             print("Persistent RolePanel loaded")
+            # Register RolePanel2 as persistent so Prince/Princess buttons work after restarts
+            try:
+                self.add_view(RolePanel2())
+                print("Persistent RolePanel2 loaded")
+            except Exception as e:
+                print("Gagal load RolePanel2:", e)
             self.add_view(ZodiacRolePanel())
             print("Persistent ZodiacRolePanel loaded")
             regional_options = await build_regional_role_options(startup_guild)
