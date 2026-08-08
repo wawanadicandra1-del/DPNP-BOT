@@ -410,17 +410,38 @@ class RoleButton(discord.ui.Button):
         self.role_id = role_id
 
     async def callback(self, interaction: discord.Interaction):
-        role = interaction.guild.get_role(self.role_id)
-        if role is None:
-            await interaction.response.send_message("Role tidak ditemukan.", ephemeral=True)
+        # Defer the interaction to avoid "didn't respond in time" when role actions take longer
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except Exception:
+            # Already responded or cannot defer; continue anyway
+            pass
+
+        guild = interaction.guild
+        if guild is None:
+            try:
+                await interaction.followup.send("Panel ini hanya bisa dipakai di server.", ephemeral=True)
+            except Exception:
+                pass
             return
+
+        role = guild.get_role(self.role_id)
+        if role is None:
+            await interaction.followup.send("Role tidak ditemukan.", ephemeral=True)
+            return
+
         member = interaction.user
-        if role in member.roles:
-            await member.remove_roles(role)
-            await interaction.response.send_message(f"❌ Role **{role.name}** dihapus dari kamu.", ephemeral=True)
-        else:
-            await member.add_roles(role)
-            await interaction.response.send_message(f"✅ Role **{role.name}** berhasil diberikan!", ephemeral=True)
+        try:
+            if role in getattr(member, 'roles', []):
+                await member.remove_roles(role)
+                await interaction.followup.send(f"❌ Role **{role.name}** dihapus dari kamu.", ephemeral=True)
+            else:
+                await member.add_roles(role)
+                await interaction.followup.send(f"✅ Role **{role.name}** berhasil diberikan!", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("Bot tidak punya izin untuk mengubah role.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Terjadi error saat mengubah role: {e}", ephemeral=True)
 
 
 class RolePanel(View):
