@@ -957,7 +957,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP", value="!profile\n!daily", inline=False)
-            embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur", inline=False)
+            embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur\n!cm", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1238,6 +1238,8 @@ class Client(discord.Client):
             await message.channel.send(f"{role_mention(message.guild, E_FOOTBALL_ROLE_ID, 'E-football')} Ayo E-football!")
         elif msg == '!catur':
             await message.channel.send(f"{role_mention(message.guild, CATUR_ROLE_ID, 'Catur')} Ayo Catur!")
+        elif msg == '!cm':
+            await message.channel.send(f"{role_mention(message.guild, CODENAME_ROLE_ID, 'Codename')} Ayo Codename main!")
         
         # ===== LIRIK COMMAND =====
         elif msg.startswith('!lirik '):
