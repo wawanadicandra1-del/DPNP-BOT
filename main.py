@@ -32,6 +32,7 @@ DEAD_BY_DAYLIGHT_ROLE_ID = 1519218694591348786
 MINECRAFT_ROLE_ID = 1533083362431074354
 E_FOOTBALL_ROLE_ID = 1533083282072146062
 CATUR_ROLE_ID = 1475915903945277450
+CODENAME_ROLE_ID = 1538166999853834240
 
 REGIONAL_ROLES = [
     ("BALI", 1532525127995228291, "🏖️"),
@@ -70,6 +71,7 @@ GAME_ROLE_EMOJI_SOURCES = [
     ("Minecraft", MINECRAFT_ROLE_ID, "role_minecraft", os.path.join(BASE_DIR, "emojirolepanel1", "minecraft.jpg"), "game_minecraft", "🧱"),
     ("E-football", E_FOOTBALL_ROLE_ID, "role_efootball", os.path.join(BASE_DIR, "emojirolepanel1", "efootball.jpg"), "game_efootball", "⚽"),
     ("Catur", CATUR_ROLE_ID, "role_catur", os.path.join(BASE_DIR, "emojirolepanel1", "catur.png"), "game_catur", "♟️"),
+    ("Codename", CODENAME_ROLE_ID, "role_codename", os.path.join(BASE_DIR, "emojirolepanel1", "Codname.jpg"), "game_codename", "🎯"),
 ]
 
 EXTRA_ROLE_EMOJI_SOURCES = [
