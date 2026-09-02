@@ -1358,6 +1358,8 @@ class Client(discord.Client):
             await message.channel.send('halo tuan muda jakarta')
         elif msg == '!kira':
             await message.channel.send('KETUA PEJANTAN TANGGUH')
+        elif msg == '!ryn':
+            await message.channel.send('hadir bagimana kabar kalian semua')
 
 
 
