@@ -33,6 +33,7 @@ MINECRAFT_ROLE_ID = 1533083362431074354
 E_FOOTBALL_ROLE_ID = 1533083282072146062
 CATUR_ROLE_ID = 1475915903945277450
 CODENAME_ROLE_ID = 1538166999853834240
+LUDOKING_ROLE_ID = 1544505242928947240
 
 REGIONAL_ROLES = [
     ("BALI", 1532525127995228291, "🏖️"),
@@ -72,6 +73,7 @@ GAME_ROLE_EMOJI_SOURCES = [
     ("E-football", E_FOOTBALL_ROLE_ID, "role_efootball", os.path.join(BASE_DIR, "emojirolepanel1", "efootball.jpg"), "game_efootball", "⚽"),
     ("Catur", CATUR_ROLE_ID, "role_catur", os.path.join(BASE_DIR, "emojirolepanel1", "catur.png"), "game_catur", "♟️"),
     ("Codename", CODENAME_ROLE_ID, "role_codename", os.path.join(BASE_DIR, "emojirolepanel1", "Codname.jpg"), "game_codename", "🎯"),
+    ("LudoKing", LUDOKING_ROLE_ID, "role_ludoking", os.path.join(BASE_DIR, "Ludoking.png"), "game_ludoking", "🎲"),
 ]
 
 EXTRA_ROLE_EMOJI_SOURCES = [
@@ -1280,6 +1282,8 @@ class Client(discord.Client):
             await message.channel.send('ga suka ara ara, sukanya rara')
         elif msg == '!brann':
             await message.channel.send('Hallo owner baik dan ganteng')
+        elif msg == '!ludo':
+            await message.channel.send(f"{role_mention(message.guild, LUDOKING_ROLE_ID, 'LudoKing')} Ayo ada king ludo ga disini selain brann")
         elif msg == '!king':
             await message.channel.send('diatas owner masih ada king')
         elif msg == '!maul':
