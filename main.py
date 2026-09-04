@@ -5,6 +5,7 @@ import os
 import asyncio
 import datetime
 import shutil
+import traceback
 
 from collections import deque
 from config import TOKEN
@@ -73,7 +74,7 @@ GAME_ROLE_EMOJI_SOURCES = [
     ("E-football", E_FOOTBALL_ROLE_ID, "role_efootball", os.path.join(BASE_DIR, "emojirolepanel1", "efootball.jpg"), "game_efootball", "⚽"),
     ("Catur", CATUR_ROLE_ID, "role_catur", os.path.join(BASE_DIR, "emojirolepanel1", "catur.png"), "game_catur", "♟️"),
     ("Codename", CODENAME_ROLE_ID, "role_codename", os.path.join(BASE_DIR, "emojirolepanel1", "Codname.jpg"), "game_codename", "🎯"),
-    ("LudoKing", LUDOKING_ROLE_ID, "role_ludoking", os.path.join(BASE_DIR, "Ludoking.png"), "game_ludoking", "🎲"),
+    ("LudoKing", LUDOKING_ROLE_ID, "role_ludoking", os.path.join(BASE_DIR, "emojirolepanel1", "Ludoking.png"), "game_ludoking", "🎲"),
 ]
 
 EXTRA_ROLE_EMOJI_SOURCES = [
@@ -676,6 +677,11 @@ def load_role_panel_image(image_path: str, attachment_name: str):
 class Client(discord.Client):
     music_queues = {}
     now_playing = {}
+
+    async def on_error(self, event, *args, **kwargs):
+        print(f"[Discord] Error pada event {event}:")
+        traceback.print_exc()
+        await super().on_error(event, *args, **kwargs)
 
     async def play_next(self, guild, channel, message_channel):
         queue = self.music_queues.get(guild.id, [])
