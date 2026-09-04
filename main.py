@@ -107,11 +107,6 @@ def role_mention(guild: discord.Guild | None, role_id: int, fallback_name: str) 
     if guild is None:
         return fallback_name
     role = guild.get_role(role_id)
-    if role is None:
-        role = discord.utils.find(
-            lambda candidate: candidate.name.casefold() == fallback_name.casefold(),
-            guild.roles,
-        )
     return role.mention if role else fallback_name
 
 
@@ -393,13 +388,6 @@ class GameRoleSelect(discord.ui.Select):
             if selected_role not in member.roles:
                 selected_roles.append(selected_role)
 
-        if not selected_names:
-            await interaction.response.send_message(
-                "Role yang dipilih tidak ditemukan di server.",
-                ephemeral=True,
-            )
-            return
-
         if not selected_roles:
             await interaction.response.send_message(
                 f"Role yang dipilih sudah kamu punya: {', '.join(selected_names)}",
@@ -407,17 +395,11 @@ class GameRoleSelect(discord.ui.Select):
             )
             return
 
-        try:
-            await member.add_roles(*selected_roles)
-            await interaction.response.send_message(
-                f"✅ Role berhasil diberikan: {', '.join(role.name for role in selected_roles)}",
-                ephemeral=True,
-            )
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "Bot tidak punya izin atau posisi role bot terlalu rendah.",
-                ephemeral=True,
-            )
+        await member.add_roles(*selected_roles)
+        await interaction.response.send_message(
+            f"✅ Role berhasil diberikan: {', '.join(role.name for role in selected_roles)}",
+            ephemeral=True,
+        )
 
 
 class RoleButton(discord.ui.Button):
@@ -661,17 +643,11 @@ class ExtraRoleSelect(discord.ui.Select):
             )
             return
 
-        try:
-            await member.add_roles(*selected_roles)
-            await interaction.response.send_message(
-                f"✅ Role berhasil diberikan: {', '.join(role.name for role in selected_roles)}",
-                ephemeral=True,
-            )
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "Bot tidak punya izin atau posisi role bot terlalu rendah.",
-                ephemeral=True,
-            )
+        await member.add_roles(*selected_roles)
+        await interaction.response.send_message(
+            f"✅ Role berhasil diberikan: {', '.join(role.name for role in selected_roles)}",
+            ephemeral=True,
+        )
 
 
 class ExtraRolePanel(View):
@@ -695,23 +671,6 @@ def load_role_panel_image(image_path: str, attachment_name: str):
     if os.path.exists(image_path):
         return discord.File(image_path, filename=attachment_name), f"attachment://{attachment_name}"
     return None, ""
-
-
-def verify_deployment_assets():
-    asset_paths = {
-        "game panel": GAMES_PANEL_IMAGE_PATH,
-        "welcome": WELCOME_GOODBYE_IMAGE_PATH,
-        "zodiac panel": ZODIAC_PANEL_IMAGE_PATH,
-        "regional panel": REGIONAL_PANEL_IMAGE_PATH,
-        "gender panel": GENDER_PANEL_IMAGE_PATH,
-        "extra role panel": EXTRA_ROLE_PANEL_IMAGE_PATH,
-        "LudoKing": os.path.join(BASE_DIR, "Ludoking.png"),
-    }
-    missing = [name for name, path in asset_paths.items() if not os.path.isfile(path)]
-    if missing:
-        print(f"[Assets] WARNING file tidak ditemukan: {', '.join(missing)}")
-    else:
-        print(f"[Assets] OK {len(asset_paths)} aset panel tersedia di {BASE_DIR}")
 
 
 class Client(discord.Client):
@@ -1022,7 +981,6 @@ class Client(discord.Client):
 
     async def on_ready(self):
         print(f'Logged on as {self.user}!')
-        verify_deployment_assets()
         # Cek cookies saat startup
         cookies_path = get_cookies_path()
         if cookies_path:
@@ -1324,13 +1282,8 @@ class Client(discord.Client):
             await message.channel.send('ga suka ara ara, sukanya rara')
         elif msg == '!brann':
             await message.channel.send('Hallo owner baik dan ganteng')
-        elif msg == '!amouw':
-            await message.channel.send('Amouw hadir!')
         elif msg == '!ludo':
-            await message.channel.send(
-                f"{role_mention(message.guild, LUDOKING_ROLE_ID, 'LudoKing')} Ayo ada king ludo ga disini selain brann",
-                allowed_mentions=discord.AllowedMentions(roles=True),
-            )
+            await message.channel.send(f"{role_mention(message.guild, LUDOKING_ROLE_ID, 'LudoKing')} Ayo ada king ludo ga disini selain brann")
         elif msg == '!king':
             await message.channel.send('diatas owner masih ada king')
         elif msg == '!maul':
@@ -1357,7 +1310,7 @@ class Client(discord.Client):
             await message.channel.send('sehat sehat all, banyak olahraga')
         elif msg == '!natan':
             await message.channel.send('jarvis apakan dlu le biar ga apa kali')
-        elif msg == '!amour':
+        elif msg == '!amouw':
             await message.channel.send('karl milik amour')
         elif msg == '!malam':
             await message.channel.send('@everyone good night guys, mimpi indah semoga sehat selalu,  mimpiin aku yaaa')
@@ -1529,11 +1482,6 @@ async def rolepanel(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, view=RolePanel(game_options), file=games_file)
     else:
         await interaction.response.send_message(embed=embed, view=RolePanel(game_options))
-
-
-@client.tree.command(name="rolepanel1", description="Kirim panel role game")
-async def rolepanel1(interaction: discord.Interaction):
-    await rolepanel.callback(interaction)
 
 
 @client.tree.command(name="rolepanel2", description="Kirim panel info role princess")
