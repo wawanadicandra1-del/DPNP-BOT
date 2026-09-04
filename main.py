@@ -1172,6 +1172,13 @@ class Client(discord.Client):
         if msg.startswith('!!'):
             msg = msg[1:]
 
+        if msg == '!amouw':
+            await message.channel.send('karl milik amour')
+            return
+        if msg == '!ryn':
+            await message.channel.send('hadir bagimana kabar kalian semua')
+            return
+
         # ===== MUSIC COMMANDS =====
         if msg.startswith('!join'):
             await self.join_voice(message)
@@ -1319,8 +1326,6 @@ class Client(discord.Client):
             await message.channel.send('sehat sehat all, banyak olahraga')
         elif msg == '!natan':
             await message.channel.send('jarvis apakan dlu le biar ga apa kali')
-        elif msg == '!amouw':
-            await message.channel.send('karl milik amour')
         elif msg == '!malam':
             await message.channel.send('@everyone good night guys, mimpi indah semoga sehat selalu,  mimpiin aku yaaa')
         elif msg == '!rin':
@@ -1367,12 +1372,6 @@ class Client(discord.Client):
             await message.channel.send('halo tuan muda jakarta')
         elif msg == '!kira':
             await message.channel.send('KETUA PEJANTAN TANGGUH')
-        elif msg == '!ryn':
-            await message.channel.send('hadir bagimana kabar kalian semua')
-
-
-
-
         elif msg.startswith('!profile'):
             member = message.mentions[0] if message.mentions else message.author
             roles = [role.mention for role in member.roles if role.name != "@everyone"]
