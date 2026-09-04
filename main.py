@@ -981,6 +981,7 @@ class Client(discord.Client):
 
     async def on_ready(self):
         print(f'Logged on as {self.user}!')
+        print(f"[Startup] message_content intent: {self.intents.message_content}")
         # Cek cookies saat startup
         cookies_path = get_cookies_path()
         if cookies_path:
@@ -1161,7 +1162,9 @@ class Client(discord.Client):
         if message.author.bot:
             return
 
-        msg = message.content.lower()
+        msg = message.content.strip().lower()
+        if msg.startswith('!!'):
+            msg = msg[1:]
 
         # ===== MUSIC COMMANDS =====
         if msg.startswith('!join'):
