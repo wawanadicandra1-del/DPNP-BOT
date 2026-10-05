@@ -4,7 +4,8 @@ A Discord bot project.
 
 Command role/game:
 
-- `!amouw` (nama lama `!amor` sudah tidak dipakai)
+- `!amour` — `karl milik amour`
+- `!amouw` — `midlaner lucu disini`
 - `!ludo`
 - `/rolepanel` atau `/rolepanel1` untuk panel role game
 

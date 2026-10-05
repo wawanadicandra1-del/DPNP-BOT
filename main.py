@@ -1172,8 +1172,11 @@ class Client(discord.Client):
         if msg.startswith('!!'):
             msg = msg[1:]
 
-        if msg == '!amouw':
+        if msg == '!amour':
             await message.channel.send('karl milik amour')
+            return
+        if msg == '!amouw':
+            await message.channel.send('midlaner lucu disini')
             return
         if msg == '!ryn':
             await message.channel.send('hadir bagimana kabar kalian semua')
