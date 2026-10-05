@@ -3,3 +3,4 @@ __pycache__/
 .env
 cookies.txt
 xp_data.json
+quick_chats.json

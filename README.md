@@ -8,6 +8,18 @@ Command role/game:
 - `!amouw` — `midlaner lucu disini`
 - `!ludo`
 - `/rolepanel` atau `/rolepanel1` untuk panel role game
+- `/quickchatpanel` untuk mengatur command quick chat (khusus administrator)
+
+## Quick Chat Panel
+
+Administrator dapat menjalankan `/quickchatpanel` untuk membuka panel pengaturan:
+
+- **Tambah**: membuat command baru, misalnya `!brann`, beserta responsnya.
+- **Edit**: mengubah respons command yang sudah ada.
+- **Hapus**: menghapus command.
+- **Refresh**: memuat daftar terbaru pada panel.
+
+Konfigurasi disimpan per server di `quick_chats.json` dan tidak dimasukkan ke Git.
 
 ## Role Panel Images
 

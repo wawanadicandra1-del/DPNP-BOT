@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import shutil
 import traceback
+import re
 
 from collections import deque
 from config import TOKEN
@@ -119,8 +120,116 @@ def remove_other_roles(guild: discord.Guild | None, member: discord.Member, role
     return [role for role in roles if role.id != selected_role_id and role in member.roles]
 
 XP_FILE = "xp_data.json"
+QUICK_CHAT_FILE = os.path.join(BASE_DIR, "quick_chats.json")
 DAILY_XP = 50
 genius = None
+
+DEFAULT_QUICK_CHATS = {
+    "!amour": "karl milik amour",
+    "!amouw": "midlaner lucu disini",
+    "!ryn": "hadir bagimana kabar kalian semua",
+    "!halo": "Halo juga! 👋",
+    "!pagi": "morning jga udh sarapan blm",
+    "!turu": "tidur ya jaga kesehatan mu",
+    "!ping": "Pong! 🏓",
+    "!yuka": "hallo kak cantik gmn kabarnya",
+    "!ryan": "Hallo Ganteng",
+    "!kiwi": "Apeeeeeeeeee",
+    "!gg": "ga suka ara ara, sukanya rara",
+    "!brann": "Hallo owner baik dan ganteng",
+    "!king": "diatas owner masih ada king",
+    "!maul": "maul berak celana di sekolah",
+    "!yeay": "adik terbaik sedipienpi ",
+    "!wann": "wann Login ada yang mau minta gendong tuh",
+    "!itik": "info roblox/ml  brannn",
+    "!putra": "ytta",
+    "!diyana": "Apakabar anak anak absen dlu satu satu",
+    "!bii": "Hallo my Kisah 📖",
+    "!melar": "di sok sok an lu",
+    "!caci": "sayang moja",
+    "!mile": "Ketua gengster, bikin gemeter🫦🫦",
+    "!wahyu": "sehat sehat all, banyak olahraga",
+    "!natan": "jarvis apakan dlu le biar ga apa kali",
+    "!malam": "@everyone good night guys, mimpi indah semoga sehat selalu,  mimpiin aku yaaa",
+    "!rin": "omakkkkk",
+    "!jikan": "info sparing mole",
+    "!vann": "pria ganteng idaman 😘😘😘",
+    "!shera": "inpokan by1 ml",
+    "!karl": "noo my kisah",
+    "!loping": "karawang nih boss",
+    "!mojil": "apasiii",
+    "!arul": "karl suka ak dia bilang sendiri",
+    "!iloy": "Iloy sayang Go Youn Jung",
+    "!sogili": "mancing guys",
+    "!araa": "adik ka bii",
+    "!zhaa": "ZHA ANAK TEKNIK",
+    "!xeno": "xeno pemutus ws",
+    "!alex": "handsome man in this server",
+    "!henn": "ceo mbg",
+    "!milaa": "orang sibuk jangan diganggu",
+    "!hazel": "Halo Perempuan Cantik dan Manis",
+    "!kajell": "Hallo dengan Princess disini👋🏻",
+    "!kai": "Halo halo bandung",
+    "!mila": "sibuk jangan di ganggu",
+    "!ramaa": "halo tuan muda jakarta",
+    "!kira": "KETUA PEJANTAN TANGGUH",
+}
+
+
+def load_quick_chats() -> dict[str, dict[str, str]]:
+    if not os.path.exists(QUICK_CHAT_FILE):
+        return {}
+    try:
+        with open(QUICK_CHAT_FILE, "r", encoding="utf-8") as quick_chat_file:
+            data = json.load(quick_chat_file)
+        if not isinstance(data, dict):
+            raise ValueError("format quick_chats.json harus berupa object")
+        return {
+            str(guild_id): {
+                str(alias): str(response)
+                for alias, response in chats.items()
+                if isinstance(chats, dict)
+                and isinstance(alias, str)
+                and isinstance(response, str)
+            }
+            for guild_id, chats in data.items()
+            if isinstance(chats, dict)
+        }
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"[QuickChat] Gagal membaca {QUICK_CHAT_FILE}: {error}")
+        return {}
+
+
+quick_chats = load_quick_chats()
+
+
+def save_quick_chats():
+    temporary_file = f"{QUICK_CHAT_FILE}.tmp"
+    try:
+        with open(temporary_file, "w", encoding="utf-8") as quick_chat_file:
+            json.dump(quick_chats, quick_chat_file, ensure_ascii=False, indent=2)
+        os.replace(temporary_file, QUICK_CHAT_FILE)
+    except OSError as error:
+        if os.path.exists(temporary_file):
+            os.remove(temporary_file)
+        raise RuntimeError(f"Gagal menyimpan quick chat: {error}") from error
+
+
+def get_guild_quick_chats(guild_id: int) -> dict[str, str]:
+    guild_key = str(guild_id)
+    if guild_key not in quick_chats:
+        quick_chats[guild_key] = dict(DEFAULT_QUICK_CHATS)
+        save_quick_chats()
+    return quick_chats[guild_key]
+
+
+def normalize_quick_chat_alias(alias: str) -> str:
+    alias = alias.strip().lower()
+    if not alias.startswith("!"):
+        alias = f"!{alias}"
+    if not re.fullmatch(r"![a-z0-9_-]{1,31}", alias):
+        raise ValueError("Nama panggilan hanya boleh memakai huruf, angka, `_`, atau `-` (maksimal 32 karakter).")
+    return alias
 
 voice_join_time = {}
 daily_claims = {}
@@ -657,6 +766,198 @@ class ExtraRolePanel(View):
         self.add_item(ExtraRoleSelect(options))
 
 
+def quick_chat_panel_embed(guild_id: int) -> discord.Embed:
+    chats = get_guild_quick_chats(guild_id)
+    embed = discord.Embed(
+        title="⚡ DPNP Quick Chat Manager",
+        description=(
+            "Atur balasan otomatis untuk command singkat seperti **!brann**.\n"
+            "Gunakan tombol di bawah untuk menambah, mengubah, atau menghapus command."
+        ),
+        color=discord.Color.blurple(),
+    )
+    if chats:
+        entries = [
+            f"`{alias}` → {response.replace(chr(10), ' ')[:90]}"
+            for alias, response in sorted(chats.items())
+        ]
+        chunks = []
+        current_chunk = []
+        current_length = 0
+        for entry in entries:
+            entry_length = len(entry) + (1 if current_chunk else 0)
+            if current_chunk and current_length + entry_length > 950:
+                chunks.append("\n".join(current_chunk))
+                current_chunk = []
+                current_length = 0
+            current_chunk.append(entry)
+            current_length += entry_length
+        if current_chunk:
+            chunks.append("\n".join(current_chunk))
+        for index, chunk in enumerate(chunks, start=1):
+            embed.add_field(
+                name=f"📚 Command aktif ({len(chats)})" if index == 1 else f"Command lainnya ({index})",
+                value=chunk,
+                inline=False,
+            )
+    else:
+        embed.add_field(name="📚 Command aktif", value="Belum ada quick chat.", inline=False)
+    embed.set_footer(text="Khusus administrator server • Perubahan tersimpan otomatis")
+    return embed
+
+
+def quick_chat_admin_only(interaction: discord.Interaction) -> bool:
+    return (
+        interaction.guild is not None
+        and isinstance(interaction.user, discord.Member)
+        and interaction.user.guild_permissions.administrator
+    )
+
+
+class AddQuickChatModal(discord.ui.Modal, title="Tambah Quick Chat"):
+    alias = discord.ui.TextInput(
+        label="Nama panggilan",
+        placeholder="Contoh: !brann",
+        max_length=32,
+        required=True,
+    )
+    response = discord.ui.TextInput(
+        label="Respons bot",
+        placeholder="Tulis balasan yang akan dikirim bot...",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return
+        try:
+            alias = normalize_quick_chat_alias(str(self.alias))
+            chats = get_guild_quick_chats(interaction.guild.id)
+            if alias in chats:
+                await interaction.response.send_message(
+                    f"⚠️ **{alias}** sudah ada. Gunakan tombol **Edit** untuk mengubahnya.",
+                    ephemeral=True,
+                )
+                return
+            response = str(self.response).strip()
+            if not response:
+                await interaction.response.send_message("❌ Respons tidak boleh kosong.", ephemeral=True)
+                return
+            chats[alias] = response
+            save_quick_chats()
+        except ValueError as error:
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        except RuntimeError as error:
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        await interaction.response.send_message(f"✅ Quick chat **{alias}** berhasil ditambahkan.", ephemeral=True)
+
+
+class EditQuickChatModal(discord.ui.Modal, title="Edit Quick Chat"):
+    alias = discord.ui.TextInput(
+        label="Nama panggilan yang akan diedit",
+        placeholder="Contoh: !brann",
+        max_length=32,
+        required=True,
+    )
+    response = discord.ui.TextInput(
+        label="Respons baru",
+        placeholder="Tulis balasan baru...",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return
+        try:
+            alias = normalize_quick_chat_alias(str(self.alias))
+            chats = get_guild_quick_chats(interaction.guild.id)
+            if alias not in chats:
+                await interaction.response.send_message(
+                    f"❌ **{alias}** belum terdaftar. Gunakan tombol **Tambah**.",
+                    ephemeral=True,
+                )
+                return
+            response = str(self.response).strip()
+            if not response:
+                await interaction.response.send_message("❌ Respons tidak boleh kosong.", ephemeral=True)
+                return
+            chats[alias] = response
+            save_quick_chats()
+        except ValueError as error:
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        except RuntimeError as error:
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        await interaction.response.send_message(f"✅ Quick chat **{alias}** berhasil diperbarui.", ephemeral=True)
+
+
+class DeleteQuickChatModal(discord.ui.Modal, title="Hapus Quick Chat"):
+    alias = discord.ui.TextInput(
+        label="Nama panggilan yang akan dihapus",
+        placeholder="Contoh: !brann",
+        max_length=32,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return
+        try:
+            alias = normalize_quick_chat_alias(str(self.alias))
+            chats = get_guild_quick_chats(interaction.guild.id)
+            if chats.pop(alias, None) is None:
+                await interaction.response.send_message(f"❌ Quick chat **{alias}** tidak ditemukan.", ephemeral=True)
+                return
+            save_quick_chats()
+        except ValueError as error:
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        except RuntimeError as error:
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        await interaction.response.send_message(f"✅ Quick chat **{alias}** berhasil dihapus.", ephemeral=True)
+
+
+class QuickChatAdminView(View):
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Tambah", emoji="➕", style=discord.ButtonStyle.success)
+    async def add_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AddQuickChatModal())
+
+    @discord.ui.button(label="Edit", emoji="✏️", style=discord.ButtonStyle.primary)
+    async def edit_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(EditQuickChatModal())
+
+    @discord.ui.button(label="Hapus", emoji="🗑️", style=discord.ButtonStyle.danger)
+    async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DeleteQuickChatModal())
+
+    @discord.ui.button(label="Refresh", emoji="🔄", style=discord.ButtonStyle.secondary)
+    async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            embed=quick_chat_panel_embed(interaction.guild.id),
+            view=self,
+        )
+
+
 def make_role_panel_embed(title: str, description: str, color: discord.Color, image_url: str = "") -> discord.Embed:
     embed = discord.Embed(
         title=title,
@@ -965,6 +1266,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP", value="!profile\n!daily", inline=False)
+            embed.add_field(name="Quick Chat", value="/quickchatpanel (khusus administrator)", inline=False)
             embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur\n!cm", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
@@ -1171,6 +1473,13 @@ class Client(discord.Client):
         msg = message.content.strip().lower()
         if msg.startswith('!!'):
             msg = msg[1:]
+
+        # Quick chat dikonfigurasi per server melalui /quickchatpanel.
+        if message.guild is not None:
+            response = get_guild_quick_chats(message.guild.id).get(msg)
+            if response is not None:
+                await message.channel.send(response)
+                return
 
         if msg == '!amour':
             await message.channel.send('karl milik amour')
@@ -1493,6 +1802,21 @@ async def rolepanel(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, view=RolePanel(game_options), file=games_file)
     else:
         await interaction.response.send_message(embed=embed, view=RolePanel(game_options))
+
+
+@client.tree.command(name="quickchatpanel", description="Buka panel pengaturan quick chat")
+async def quickchatpanel(interaction: discord.Interaction):
+    if not quick_chat_admin_only(interaction):
+        await interaction.response.send_message(
+            "❌ Panel quick chat hanya bisa dibuka oleh administrator server.",
+            ephemeral=True,
+        )
+        return
+    await interaction.response.send_message(
+        embed=quick_chat_panel_embed(interaction.guild.id),
+        view=QuickChatAdminView(),
+        ephemeral=True,
+    )
 
 
 @client.tree.command(name="rolepanel2", description="Kirim panel info role princess")
