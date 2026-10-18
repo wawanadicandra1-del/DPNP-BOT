@@ -973,7 +973,21 @@ class IntroductionModal(discord.ui.Modal, title="Introduction"):
         embed.add_field(name="• Asal Kota", value=str(self.hometown), inline=False)
         embed.add_field(name="• Tentang Kamu", value=str(self.about), inline=False)
         embed.set_footer(text=f"Diperkenalkan oleh {interaction.user}")
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed, view=IntroductionPanelView())
+
+
+class IntroductionPanelView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Introduction",
+        emoji="📝",
+        style=discord.ButtonStyle.primary,
+        custom_id="introduction:open",
+    )
+    async def introduction_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(IntroductionModal())
 
 
 class QuickChatAdminView(View):
@@ -1315,6 +1329,7 @@ class Client(discord.Client):
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP", value="!profile\n!daily", inline=False)
             embed.add_field(name="Introduction", value="/introduction (buat perkenalan diri)", inline=False)
+            embed.add_field(name="Panel Introduction", value="/introductionpanel (kirim tombol introduction)", inline=False)
             embed.add_field(name="Quick Chat", value="/quickchatpanel (khusus administrator)", inline=False)
             embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur\n!cm", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
@@ -1347,6 +1362,8 @@ class Client(discord.Client):
             print("[Startup] WARNING: cookies.txt tidak ditemukan!")
 
         try:
+            self.add_view(IntroductionPanelView())
+            print("Persistent IntroductionPanel loaded")
             startup_guild = self.guilds[0] if self.guilds else None
             startup_options = await build_game_role_options(startup_guild)
             self.add_view(RolePanel(startup_options))
@@ -1836,6 +1853,20 @@ intents.members = True
 intents.voice_states = True
 
 client = Client(intents=intents)
+
+@client.tree.command(name="introductionpanel", description="Kirim panel tombol untuk membuat introduction")
+async def introductionpanel(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="👋 Buat Introduction",
+        description=(
+            "Ingin memperkenalkan diri di server?\n"
+            "Klik tombol **📝 Introduction** di bawah dan isi form singkatnya."
+        ),
+        color=discord.Color.blurple(),
+    )
+    embed.set_footer(text="Semua member boleh membuat introduction")
+    await interaction.response.send_message(embed=embed, view=IntroductionPanelView())
+
 
 @client.tree.command(name="introduction", description="Buat perkenalan singkat tentang dirimu")
 async def introduction(interaction: discord.Interaction):
