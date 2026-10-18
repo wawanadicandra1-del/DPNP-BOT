@@ -21,6 +21,7 @@ BOOSTER_ROLE_ID = 1437740399786459247
 AUTO_ROLE_ID = 1438899323336130802
 RULES_CHANNEL_ID = 1459140957932093652
 TAKE_ROLE_CHANNEL_ID = 1417152449650626693
+INTRODUCTION_CHANNEL_ID = 1561360502427361370
 PRINCESS_ROLE_ID = 1417156113232826450
 PRINCE_ROLE_ID = 1417156158518464594
 MOBILE_LEGENDS_ROLE_ID = 1449602863687794789
@@ -973,7 +974,11 @@ class IntroductionModal(discord.ui.Modal, title="Introduction"):
         embed.add_field(name="• Asal Kota", value=str(self.hometown), inline=False)
         embed.add_field(name="• Tentang Kamu", value=str(self.about), inline=False)
         embed.set_footer(text=f"Diperkenalkan oleh {interaction.user}")
-        await interaction.response.send_message(embed=embed, view=IntroductionPanelView())
+        await interaction.response.send_message(
+            content=interaction.user.mention,
+            embed=embed,
+            view=IntroductionPanelView(),
+        )
 
 
 class IntroductionPanelView(View):
@@ -1407,12 +1412,26 @@ class Client(discord.Client):
 
     # ================= WELCOME =================
     async def on_member_join(self, member):
+        rules_channel = member.guild.get_channel(RULES_CHANNEL_ID)
+        take_role_channel = member.guild.get_channel(TAKE_ROLE_CHANNEL_ID)
+        introduction_channel = member.guild.get_channel(INTRODUCTION_CHANNEL_ID)
+        rules_mention = rules_channel.mention if rules_channel else 'rules'
+        take_role_mention = take_role_channel.mention if take_role_channel else 'take role'
+        introduction_mention = (
+            introduction_channel.mention
+            if introduction_channel
+            else f"<#{INTRODUCTION_CHANNEL_ID}>"
+        )
+
         channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
         if channel:
             welcome_file, welcome_image_url = load_role_panel_image(WELCOME_GOODBYE_IMAGE_PATH, "dpnp-welcome.png")
             embed = discord.Embed(
                 title="Selamat Datang",
-                description=f"Halo {member.mention}, selamat datang di DPNP. Semoga enjoy!",
+                description=(
+                    f"Halo {member.mention}, selamat datang di DPNP. Semoga enjoy!\n"
+                    f"Jangan lupa perkenalkan diri kalian di channel ini {introduction_mention} 👋🏻"
+                ),
                 color=discord.Color.blue()
             )
             embed.set_thumbnail(url=member.display_avatar.url)
@@ -1423,15 +1442,12 @@ class Client(discord.Client):
             else:
                 await channel.send(embed=embed)
 
-        rules_channel = member.guild.get_channel(RULES_CHANNEL_ID)
-        take_role_channel = member.guild.get_channel(TAKE_ROLE_CHANNEL_ID)
-        rules_mention = rules_channel.mention if rules_channel else 'rules'
-        take_role_mention = take_role_channel.mention if take_role_channel else 'take role'
-
         greet_channel = member.guild.get_channel(JOIN_GREET_CHANNEL_ID)
         if greet_channel:
             await greet_channel.send(
-                f"Halo {member.mention}, selamat datang di DPNP. Semoga enjoy! Cek {rules_mention} dan ambil role di {take_role_mention} ya."
+                f"Halo {member.mention}, selamat datang di DPNP. Semoga enjoy! "
+                f"Cek {rules_mention} dan ambil role di {take_role_mention} ya. "
+                f"Jangan lupa perkenalkan diri kalian di channel ini {introduction_mention} 👋🏻"
             )
 
         role = member.guild.get_role(AUTO_ROLE_ID)
