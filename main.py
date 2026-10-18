@@ -928,6 +928,54 @@ class DeleteQuickChatModal(discord.ui.Modal, title="Hapus Quick Chat"):
         await interaction.response.send_message(f"✅ Quick chat **{alias}** berhasil dihapus.", ephemeral=True)
 
 
+class IntroductionModal(discord.ui.Modal, title="Introduction"):
+    name = discord.ui.TextInput(
+        label="Nama",
+        placeholder="Gak harus nama asli :)",
+        max_length=100,
+        required=True,
+    )
+    hobby = discord.ui.TextInput(
+        label="Hobi",
+        placeholder="Contoh: nonton anime, gaming, sepak bola",
+        max_length=200,
+        required=True,
+    )
+    favorite_game = discord.ui.TextInput(
+        label="Game Favorit",
+        placeholder="Contoh: Mobile Legends, Project Sekai",
+        max_length=200,
+        required=True,
+    )
+    hometown = discord.ui.TextInput(
+        label="Asal Kota",
+        placeholder="Contoh: Jakarta, Bandung",
+        max_length=100,
+        required=True,
+    )
+    about = discord.ui.TextInput(
+        label="Tentang Kamu",
+        placeholder="Ceritakan sedikit tentang dirimu...",
+        style=discord.TextStyle.paragraph,
+        max_length=1000,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title=f"👋 Introduction {interaction.user.display_name}",
+            color=interaction.user.color if interaction.user.color != discord.Color.default() else discord.Color.blurple(),
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(name="• Nama", value=str(self.name), inline=False)
+        embed.add_field(name="• Hobi", value=str(self.hobby), inline=False)
+        embed.add_field(name="• Game Favorit", value=str(self.favorite_game), inline=False)
+        embed.add_field(name="• Asal Kota", value=str(self.hometown), inline=False)
+        embed.add_field(name="• Tentang Kamu", value=str(self.about), inline=False)
+        embed.set_footer(text=f"Diperkenalkan oleh {interaction.user}")
+        await interaction.response.send_message(embed=embed)
+
+
 class QuickChatAdminView(View):
     def __init__(self):
         super().__init__(timeout=300)
@@ -1266,6 +1314,7 @@ class Client(discord.Client):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="XP", value="!profile\n!daily", inline=False)
+            embed.add_field(name="Introduction", value="/introduction (buat perkenalan diri)", inline=False)
             embed.add_field(name="Quick Chat", value="/quickchatpanel (khusus administrator)", inline=False)
             embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur\n!cm", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
@@ -1787,6 +1836,11 @@ intents.members = True
 intents.voice_states = True
 
 client = Client(intents=intents)
+
+@client.tree.command(name="introduction", description="Buat perkenalan singkat tentang dirimu")
+async def introduction(interaction: discord.Interaction):
+    await interaction.response.send_modal(IntroductionModal())
+
 
 @client.tree.command(name="rolepanel", description="Kirim panel ambil role")
 async def rolepanel(interaction: discord.Interaction):
