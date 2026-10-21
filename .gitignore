@@ -4,3 +4,4 @@ __pycache__/
 cookies.txt
 xp_data.json
 quick_chats.json
+blocked_words.json

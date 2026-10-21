@@ -122,6 +122,7 @@ def remove_other_roles(guild: discord.Guild | None, member: discord.Member, role
 
 XP_FILE = "xp_data.json"
 QUICK_CHAT_FILE = os.path.join(BASE_DIR, "quick_chats.json")
+BLOCKED_WORDS_FILE = os.path.join(BASE_DIR, "blocked_words.json")
 DAILY_XP = 50
 genius = None
 
@@ -202,6 +203,66 @@ def load_quick_chats() -> dict[str, dict[str, str]]:
 
 
 quick_chats = load_quick_chats()
+
+
+def load_blocked_words() -> dict[str, list[str]]:
+    if not os.path.exists(BLOCKED_WORDS_FILE):
+        return {}
+    try:
+        with open(BLOCKED_WORDS_FILE, "r", encoding="utf-8") as blocked_words_file:
+            data = json.load(blocked_words_file)
+        if not isinstance(data, dict):
+            raise ValueError("format blocked_words.json harus berupa object")
+        return {
+            str(guild_id): sorted({
+                str(word).strip().casefold()
+                for word in words
+                if isinstance(word, str) and str(word).strip()
+            })
+            for guild_id, words in data.items()
+            if isinstance(words, list)
+        }
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"[BlockedWords] Gagal membaca {BLOCKED_WORDS_FILE}: {error}")
+        return {}
+
+
+blocked_words = load_blocked_words()
+
+
+def save_blocked_words():
+    temporary_file = f"{BLOCKED_WORDS_FILE}.tmp"
+    try:
+        with open(temporary_file, "w", encoding="utf-8") as blocked_words_file:
+            json.dump(blocked_words, blocked_words_file, ensure_ascii=False, indent=2)
+        os.replace(temporary_file, BLOCKED_WORDS_FILE)
+    except OSError as error:
+        if os.path.exists(temporary_file):
+            os.remove(temporary_file)
+        raise RuntimeError(f"Gagal menyimpan daftar blokir: {error}") from error
+
+
+def get_guild_blocked_words(guild_id: int) -> list[str]:
+    guild_key = str(guild_id)
+    if guild_key not in blocked_words:
+        blocked_words[guild_key] = []
+    return blocked_words[guild_key]
+
+
+def blocked_words_panel_embed(guild_id: int) -> discord.Embed:
+    words = get_guild_blocked_words(guild_id)
+    description = (
+        "Pesan yang mengandung salah satu kata di bawah akan dihapus otomatis.\n"
+        "Pencocokan tidak membedakan huruf besar dan kecil."
+    )
+    embed = discord.Embed(title="🚫 Panel Blokir Kata", description=description, color=discord.Color.red())
+    if words:
+        embed.add_field(name=f"Daftar kata ({len(words)})", value="\n".join(f"• `{word}`" for word in words[:50]), inline=False)
+        if len(words) > 50:
+            embed.set_footer(text=f"{len(words) - 50} kata lainnya tidak ditampilkan")
+    else:
+        embed.add_field(name="Daftar kata", value="Belum ada kata yang diblokir.", inline=False)
+    return embed
 
 
 def save_quick_chats():
@@ -371,6 +432,7 @@ class MusicControlView(View):
     async def leave_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = self.guild.voice_client
         if vc:
+            self.client.stream_sessions.pop(self.guild.id, None)
             self.client.music_queues[self.guild.id] = []
             self.client.now_playing[self.guild.id] = None
             await vc.disconnect()
@@ -1025,6 +1087,91 @@ class QuickChatAdminView(View):
         )
 
 
+class AddBlockedWordModal(discord.ui.Modal, title="Tambah Kata Blokir"):
+    word = discord.ui.TextInput(
+        label="Kata atau frasa",
+        placeholder="Contoh: kata kasar",
+        max_length=100,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return
+        word = str(self.word).strip().casefold()
+        if not word:
+            await interaction.response.send_message("❌ Kata tidak boleh kosong.", ephemeral=True)
+            return
+        words = get_guild_blocked_words(interaction.guild.id)
+        if word in words:
+            await interaction.response.send_message(f"⚠️ Kata `{word}` sudah diblokir.", ephemeral=True)
+            return
+        words.append(word)
+        words.sort()
+        try:
+            save_blocked_words()
+        except RuntimeError as error:
+            words.remove(word)
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        await interaction.response.send_message(f"✅ Kata `{word}` berhasil diblokir.", ephemeral=True)
+
+
+class DeleteBlockedWordModal(discord.ui.Modal, title="Hapus Kata Blokir"):
+    word = discord.ui.TextInput(
+        label="Kata atau frasa yang dihapus",
+        placeholder="Contoh: kata kasar",
+        max_length=100,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return
+        word = str(self.word).strip().casefold()
+        words = get_guild_blocked_words(interaction.guild.id)
+        if word not in words:
+            await interaction.response.send_message(f"❌ Kata `{word}` tidak ditemukan.", ephemeral=True)
+            return
+        words.remove(word)
+        try:
+            save_blocked_words()
+        except RuntimeError as error:
+            words.append(word)
+            words.sort()
+            await interaction.response.send_message(f"❌ {error}", ephemeral=True)
+            return
+        await interaction.response.send_message(f"✅ Kata `{word}` tidak lagi diblokir.", ephemeral=True)
+
+
+class BlockedWordsAdminView(View):
+    def __init__(self):
+        super().__init__(timeout=300)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if not quick_chat_admin_only(interaction):
+            await interaction.response.send_message("❌ Panel ini hanya untuk administrator.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Tambah", emoji="➕", style=discord.ButtonStyle.success)
+    async def add_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AddBlockedWordModal())
+
+    @discord.ui.button(label="Hapus", emoji="🗑️", style=discord.ButtonStyle.danger)
+    async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(DeleteBlockedWordModal())
+
+    @discord.ui.button(label="Refresh", emoji="🔄", style=discord.ButtonStyle.secondary)
+    async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(
+            embed=blocked_words_panel_embed(interaction.guild.id),
+            view=self,
+        )
+
+
 def make_role_panel_embed(title: str, description: str, color: discord.Color, image_url: str = "") -> discord.Embed:
     embed = discord.Embed(
         title=title,
@@ -1275,13 +1422,51 @@ class Client(discord.Client):
     async def join_voice(self, message):
         if message.author.voice:
             channel = message.author.voice.channel
-            await channel.connect()
+            self.stream_sessions.pop(message.guild.id, None)
+            if message.guild.voice_client:
+                await message.guild.voice_client.move_to(channel)
+            else:
+                await channel.connect()
             await message.channel.send(f"✅ Bergabung ke voice channel: {channel.name}")
         else:
             await message.channel.send("❌ Kamu harus join voice channel dulu!")
 
+    async def join_stream(self, interaction):
+        if interaction.guild is None or interaction.user.voice is None:
+            await interaction.response.send_message(
+                "❌ Kamu harus join voice channel dulu sebelum memakai `/stream`.",
+                ephemeral=True,
+            )
+            return
+
+        channel = interaction.user.voice.channel
+        voice_client = interaction.guild.voice_client
+        try:
+            if voice_client:
+                await voice_client.move_to(channel)
+            else:
+                await channel.connect()
+        except (discord.ClientException, discord.Forbidden, discord.HTTPException, asyncio.TimeoutError) as error:
+            print(f"[Stream] Gagal bergabung ke {channel.name}: {error}")
+            await interaction.response.send_message(
+                "❌ Bot tidak bisa bergabung ke voice channel. Pastikan izin **Connect** dan **Speak** tersedia.",
+                ephemeral=True,
+            )
+            return
+
+        self.stream_sessions[interaction.guild.id] = {
+            "channel_id": channel.id,
+            "user_id": interaction.user.id,
+        }
+        await interaction.response.send_message(
+            f"📺 Bot bergabung ke **{channel.name}** untuk menemani stream kamu. "
+            "Bot akan tetap di sana selama kamu masih berada di voice.",
+            ephemeral=True,
+        )
+
     async def leave_voice(self, message):
         if message.guild.voice_client:
+            self.stream_sessions.pop(message.guild.id, None)
             self.music_queues[message.guild.id] = []
             self.now_playing[message.guild.id] = None
             await message.guild.voice_client.disconnect()
@@ -1324,6 +1509,7 @@ class Client(discord.Client):
     def __init__(self, *, intents):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
+        self.stream_sessions = {}
 
     async def setup_hook(self):
         await self.tree.sync()
@@ -1332,10 +1518,12 @@ class Client(discord.Client):
         async def help_command(interaction: discord.Interaction):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
             embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
+            embed.add_field(name="Stream", value="/stream (bot menemani stream di voice sampai kamu keluar)", inline=False)
             embed.add_field(name="XP", value="!profile\n!daily", inline=False)
             embed.add_field(name="Introduction", value="/introduction (buat perkenalan diri)", inline=False)
             embed.add_field(name="Panel Introduction", value="/introductionpanel (kirim tombol introduction)", inline=False)
             embed.add_field(name="Quick Chat", value="/quickchatpanel (khusus administrator)", inline=False)
+            embed.add_field(name="Blokir Kata", value="/blockedwordspanel (khusus administrator)", inline=False)
             embed.add_field(name="Role", value="/rolepanel (game role)\n/rolepanel3 (zodiak)\n/rolepanel4 (regional)\n/rolepanel5 (role extra)\n!pubg\n!clashofclans\n!deadbydaylight\n!minecraft\n!efootball\n!catur\n!cm", inline=False)
             embed.add_field(name="Fun", value="!kiss, !slap, !hug, !bite, !pat, !kill", inline=False)
             embed.set_footer(text="DPNP Bot by wuwa5741-art")
@@ -1408,7 +1596,29 @@ class Client(discord.Client):
 
     # ================= VOICE XP =================
     async def on_voice_state_update(self, member, before, after):
-        return
+        session = self.stream_sessions.get(member.guild.id)
+        if not session or member.id != session["user_id"]:
+            return
+
+        voice_client = member.guild.voice_client
+        if after.channel is None:
+            self.stream_sessions.pop(member.guild.id, None)
+            if voice_client and voice_client.channel and voice_client.channel.id == session["channel_id"]:
+                await voice_client.disconnect()
+            return
+
+        if after.channel.id == session["channel_id"]:
+            return
+
+        if voice_client and voice_client.channel and voice_client.channel.id == session["channel_id"]:
+            try:
+                await voice_client.move_to(after.channel)
+                session["channel_id"] = after.channel.id
+            except (discord.ClientException, discord.Forbidden, discord.HTTPException, asyncio.TimeoutError) as error:
+                print(f"[Stream] Gagal mengikuti perpindahan channel {member}: {error}")
+                self.stream_sessions.pop(member.guild.id, None)
+        else:
+            session["channel_id"] = after.channel.id
 
     # ================= WELCOME =================
     async def on_member_join(self, member):
@@ -1546,10 +1756,34 @@ class Client(discord.Client):
                 )
 
     # ================= COMMAND =================
+    async def moderate_blocked_word(self, message) -> bool:
+        if message.guild is None:
+            return False
+        words = get_guild_blocked_words(message.guild.id)
+        content = message.content.casefold()
+        matched_word = next((word for word in words if word in content), None)
+        if matched_word is None:
+            return False
+        try:
+            await message.delete()
+        except (discord.Forbidden, discord.HTTPException) as error:
+            print(f"[BlockedWords] Gagal menghapus pesan di {message.guild.name}: {error}")
+            return True
+        try:
+            await message.channel.send(
+                f"⚠️ Pesan dari {message.author.mention} dihapus karena mengandung kata terlarang.",
+                delete_after=5,
+            )
+        except (discord.Forbidden, discord.HTTPException) as error:
+            print(f"[BlockedWords] Gagal mengirim peringatan di {message.guild.name}: {error}")
+        return True
+
     async def on_message(self, message):
         if message.author == self.user:
             return
         if message.author.bot:
+            return
+        if await self.moderate_blocked_word(message):
             return
 
         msg = message.content.strip().lower()
@@ -1870,6 +2104,11 @@ intents.voice_states = True
 
 client = Client(intents=intents)
 
+@client.tree.command(name="stream", description="Bergabung dan tetap menemani stream di voice channel")
+async def stream(interaction: discord.Interaction):
+    await client.join_stream(interaction)
+
+
 @client.tree.command(name="introductionpanel", description="Kirim panel tombol untuk membuat introduction")
 async def introductionpanel(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -1916,6 +2155,21 @@ async def quickchatpanel(interaction: discord.Interaction):
     await interaction.response.send_message(
         embed=quick_chat_panel_embed(interaction.guild.id),
         view=QuickChatAdminView(),
+        ephemeral=True,
+    )
+
+
+@client.tree.command(name="blockedwordspanel", description="Buka panel pengaturan blokir kata")
+async def blockedwordspanel(interaction: discord.Interaction):
+    if not quick_chat_admin_only(interaction):
+        await interaction.response.send_message(
+            "❌ Panel blokir kata hanya bisa dibuka oleh administrator server.",
+            ephemeral=True,
+        )
+        return
+    await interaction.response.send_message(
+        embed=blocked_words_panel_embed(interaction.guild.id),
+        view=BlockedWordsAdminView(),
         ephemeral=True,
     )
 
