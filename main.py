@@ -121,6 +121,7 @@ def remove_other_roles(guild: discord.Guild | None, member: discord.Member, role
     return [role for role in roles if role.id != selected_role_id and role in member.roles]
 
 XP_FILE = "xp_data.json"
+PLAYON_FILE = os.path.join(BASE_DIR, "playon_channels.json")
 QUICK_CHAT_FILE = os.path.join(BASE_DIR, "quick_chats.json")
 BLOCKED_WORDS_FILE = os.path.join(BASE_DIR, "blocked_words.json")
 DAILY_XP = 50
@@ -311,6 +312,24 @@ else:
 def save_xp():
     with open(XP_FILE, "w") as f:
         json.dump(xp_data, f)
+
+
+def load_playon_channels():
+    if not os.path.exists(PLAYON_FILE):
+        return {}
+    try:
+        with open(PLAYON_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {int(guild_id): int(channel_id) for guild_id, channel_id in data.items()}
+    except (OSError, ValueError, TypeError) as error:
+        print(f"[PlayOn] Gagal membaca konfigurasi: {error}")
+        return {}
+
+
+def save_playon_channels(channels):
+    with open(PLAYON_FILE, "w", encoding="utf-8") as f:
+        json.dump({str(guild_id): channel_id for guild_id, channel_id in channels.items()}, f)
+
 
 # ===== HELPER: PATH COOKIES =====
 def get_ffmpeg_path():
@@ -1466,12 +1485,25 @@ class Client(discord.Client):
 
     async def leave_voice(self, message):
         if message.guild.voice_client:
+            self.playon_channels.pop(message.guild.id, None)
+            save_playon_channels(self.playon_channels)
+            task = self.playon_tasks.pop(message.guild.id, None)
+            if task and not task.done():
+                task.cancel()
             self.stream_sessions.pop(message.guild.id, None)
             self.music_queues[message.guild.id] = []
             self.now_playing[message.guild.id] = None
             await message.guild.voice_client.disconnect()
             await message.channel.send("👋 Bot keluar dari voice channel dan antrian dikosongkan.")
         else:
+            if message.guild.id in self.playon_channels:
+                self.playon_channels.pop(message.guild.id, None)
+                save_playon_channels(self.playon_channels)
+                task = self.playon_tasks.pop(message.guild.id, None)
+                if task and not task.done():
+                    task.cancel()
+                await message.channel.send("👋 Mode PlayOn dimatikan.")
+                return
             await message.channel.send("❌ Bot tidak sedang di voice channel.")
 
     async def stop_music(self, message):
@@ -1510,6 +1542,59 @@ class Client(discord.Client):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
         self.stream_sessions = {}
+        self.playon_channels = load_playon_channels()
+        self.playon_tasks = {}
+
+    async def maintain_playon(self, guild_id):
+        while guild_id in self.playon_channels:
+            guild = self.get_guild(guild_id)
+            if guild is None:
+                await asyncio.sleep(30)
+                continue
+
+            channel_id = self.playon_channels[guild_id]
+            channel = guild.get_channel(channel_id)
+            if channel is None or not isinstance(channel, discord.VoiceChannel):
+                print(f"[PlayOn] Voice channel {channel_id} tidak ditemukan di {guild.name}.")
+                await asyncio.sleep(30)
+                continue
+
+            voice_client = guild.voice_client
+            try:
+                if voice_client is None:
+                    await channel.connect()
+                    print(f"[PlayOn] Bergabung ke {channel.name} di {guild.name}.")
+                elif voice_client.channel.id != channel.id:
+                    await voice_client.move_to(channel)
+            except (discord.ClientException, discord.Forbidden, discord.HTTPException, asyncio.TimeoutError) as error:
+                print(f"[PlayOn] Gagal bergabung ke {channel.name}: {error}")
+                await asyncio.sleep(15)
+                continue
+
+            await asyncio.sleep(30)
+
+    def start_playon_task(self, guild_id):
+        task = self.playon_tasks.get(guild_id)
+        if task is None or task.done():
+            self.playon_tasks[guild_id] = asyncio.create_task(self.maintain_playon(guild_id))
+
+    async def enable_playon(self, message):
+        if message.guild is None or message.author.voice is None:
+            await message.channel.send("❌ Kamu harus join voice channel dulu untuk menentukan target `!playon`.")
+            return
+
+        channel = message.author.voice.channel
+        if not isinstance(channel, discord.VoiceChannel):
+            await message.channel.send("❌ `!playon` hanya bisa dipakai di voice channel biasa.")
+            return
+
+        self.playon_channels[message.guild.id] = channel.id
+        save_playon_channels(self.playon_channels)
+        self.start_playon_task(message.guild.id)
+        await message.channel.send(
+            f"✅ Mode PlayOn aktif di **{channel.name}**. "
+            "Bot akan tetap berada di sana walaupun channel sedang kosong dan akan masuk ulang jika koneksi terputus."
+        )
 
     async def setup_hook(self):
         await self.tree.sync()
@@ -1517,7 +1602,7 @@ class Client(discord.Client):
         @self.tree.command(name="help", description="Lihat semua fitur DPNP Bot")
         async def help_command(interaction: discord.Interaction):
             embed = discord.Embed(title="DPNP Bot Help", color=discord.Color.blurple())
-            embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!leave\n!queue\n/queue", inline=False)
+            embed.add_field(name="Musik", value="!play [link_youtube]\n!d [judul lagu]\n!stop\n!join\n!playon\n!leave\n!queue\n/queue", inline=False)
             embed.add_field(name="Stream", value="/stream (bot menemani stream di voice sampai kamu keluar)", inline=False)
             embed.add_field(name="XP", value="!profile\n!daily", inline=False)
             embed.add_field(name="Introduction", value="/introduction (buat perkenalan diri)", inline=False)
@@ -1547,6 +1632,8 @@ class Client(discord.Client):
     async def on_ready(self):
         print(f'Logged on as {self.user}!')
         print(f"[Startup] message_content intent: {self.intents.message_content}")
+        for guild_id in self.playon_channels:
+            self.start_playon_task(guild_id)
         # Cek cookies saat startup
         cookies_path = get_cookies_path()
         if cookies_path:
@@ -1810,6 +1897,9 @@ class Client(discord.Client):
         # ===== MUSIC COMMANDS =====
         if msg.startswith('!join'):
             await self.join_voice(message)
+            return
+        elif msg == '!playon':
+            await self.enable_playon(message)
             return
         elif msg.startswith('!leave'):
             await self.leave_voice(message)

@@ -7,6 +7,8 @@ Command role/game:
 - `!amour` — `karl milik amour`
 - `!amouw` — `midlaner lucu disini`
 - `!ludo`
+- `!playon` — bot masuk ke voice channel kamu dan tetap berada di sana walaupun channel kosong; bot akan mencoba masuk ulang jika koneksi terputus.
+- `!leave` — keluar dari voice dan mematikan mode `!playon`.
 - `/rolepanel` atau `/rolepanel1` untuk panel role game
 - `/quickchatpanel` untuk mengatur command quick chat (khusus administrator)
 
@@ -30,3 +32,5 @@ Environment variables berikut hanya diperlukan jika ingin memakai URL eksternal:
 
 - `ZODIAC_PANEL_IMAGE_URL` for `rolepanel3`
 - `REGIONAL_PANEL_IMAGE_URL` for `rolepanel4`
+
+Mode `!playon` menyimpan target voice channel di `playon_channels.json` agar bot dapat masuk kembali setelah reconnect selama file tersebut tetap tersedia di host.
