@@ -1591,10 +1591,6 @@ class Client(discord.Client):
         self.playon_channels[message.guild.id] = channel.id
         save_playon_channels(self.playon_channels)
         self.start_playon_task(message.guild.id)
-        await message.channel.send(
-            f"✅ Mode PlayOn aktif di **{channel.name}**. "
-            "Bot akan tetap berada di sana walaupun channel sedang kosong dan akan masuk ulang jika koneksi terputus."
-        )
 
     async def setup_hook(self):
         await self.tree.sync()

@@ -7,7 +7,7 @@ Command role/game:
 - `!amour` — `karl milik amour`
 - `!amouw` — `midlaner lucu disini`
 - `!ludo`
-- `!playon` — bot masuk ke voice channel kamu dan tetap berada di sana walaupun channel kosong; bot akan mencoba masuk ulang jika koneksi terputus.
+- `!playon` — bot masuk ke voice channel kamu tanpa mengirim notifikasi sukses dan tetap berada di sana walaupun channel kosong; bot akan mencoba masuk ulang jika koneksi terputus.
 - `!leave` — keluar dari voice dan mematikan mode `!playon`.
 - `/rolepanel` atau `/rolepanel1` untuk panel role game
 - `/quickchatpanel` untuk mengatur command quick chat (khusus administrator)
